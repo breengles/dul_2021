@@ -1,4 +1,5 @@
 from .utils import *
+import torch
 
 
 def q1_a_sample_data(image_file, n, d):
@@ -146,3 +147,24 @@ def q1_save_results(dset_type, part, fn):
             f"results/q2_{part}_dset{dset_type}_train_plot.png",
         )
         show_samples(samples, f"results/q2_{part}_dset{dset_type}_samples.png")
+
+
+def get_joint_dist(model, d, device="cpu"):
+    xs = torch.eye(d, device=device)
+    ys = torch.eye(d, device=device)
+
+    dist = torch.zeros((d, d))
+
+    model.eval()
+
+    for i, x in enumerate(xs):
+        for j, y in enumerate(ys):
+            inp = torch.cat((x, y)).reshape(1, -1).to(device)
+            onehot_prob = model(inp).squeeze(0)
+
+            prob_x = onehot_prob[0][x == 1]
+            prob_y = onehot_prob[1][y == 1]
+
+            dist[i, j] = prob_x * prob_y
+
+    return dist.cpu().numpy()
