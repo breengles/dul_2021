@@ -31,7 +31,6 @@ class MADE(nn.Module):
 
         layers = []
         sizes = [inp_dim * d] + list(hidden_sizes) + [out_dim * d]
-
         for s1, s2 in zip(sizes[:-1], sizes[1:-1]):
             layers.extend([MaskedLinear(s1, s2), nn.ReLU()])
         else:
@@ -41,6 +40,8 @@ class MADE(nn.Module):
 
         self.m = {}
         self.make_masks()
+
+        self.criterion = nn.CrossEntropyLoss()
 
     def make_masks(self):
         L = len(self.hidden_sizes)
@@ -57,21 +58,17 @@ class MADE(nn.Module):
             l.set_mask(m)
 
     def forward(self, X):
-        X_ = self.main(X).reshape(X.shape[0], self.out_dim, self.d)
-        X_ = F.softmax(X_, dim=-1)
-        return X_
+        return self.main(X).reshape(-1, self.inp_dim, self.d)  # this reshape works correctly
+
+    def predict_proba(self, X):
+        return F.softmax(self(X), dim=-1)
 
     def __step(self, batch):
-        criterion = nn.BCELoss()
         batch = batch.to(self.main[0].weight.device)
+        outs = self(batch.reshape(batch.size(0), -1)).transpose(1, 2)  # this reshape works correctly
+        classes = torch.argmax(batch, dim=-1)
+        loss = self.criterion(outs, classes)
 
-        # criterion = nn.NLLLoss()
-        # outs = self(batch).reshape(batch.size(0), self.d, self.out_dim)
-        # classes = torch.argmax(batch.reshape(batch.size(0), self.out_dim, self.d), dim=-1)
-        # loss = criterion(outs, classes)
-
-        outs = self(batch)
-        loss = criterion(outs, batch.reshape(batch.size(0), self.out_dim, self.d))
         return loss
 
     def __test(self, test):
@@ -115,11 +112,11 @@ class MADE(nn.Module):
     def sample(self):
         device = self.main[0].weight.device
         with torch.no_grad():
-            x = torch.zeros((1, self.inp_dim, self.d)).to(device)
+            x = torch.zeros((self.inp_dim, self.d)).to(device)
             for it in range(self.out_dim):
-                out = self(x.reshape(1, -1)).squeeze(0)
+                out = self.predict_proba(x.flatten().unsqueeze(0)).squeeze(0)
                 curr_hist = out[it].numpy()
                 idx = np.random.choice(self.d, p=curr_hist)
-                x[:, it, idx] = 1
+                x[it, idx] = 1
 
         return x

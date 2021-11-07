@@ -1,3 +1,4 @@
+from itertools import product
 from .utils import *
 import torch
 
@@ -155,15 +156,13 @@ def get_joint_dist(model, d, device="cpu"):
 
     dist = torch.zeros((d, d))
 
-    model.eval()
-
     for i, x in enumerate(xs):
         for j, y in enumerate(ys):
-            inp = torch.cat((x, y)).reshape(1, -1).to(device)
-            onehot_prob = model(inp).squeeze(0)
+            inp = torch.cat((x, y)).unsqueeze(0).to(device)
+            onehot_prob = model.predict_proba(inp).squeeze(0)
 
-            prob_x = onehot_prob[0][x == 1]
-            prob_y = onehot_prob[1][y == 1]
+            prob_x = onehot_prob[0].dot(x)
+            prob_y = onehot_prob[1].dot(y)
 
             dist[i, j] = prob_x * prob_y
 
