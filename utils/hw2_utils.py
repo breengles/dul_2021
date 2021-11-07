@@ -20,9 +20,9 @@ def q1ab_save_results(dset_type, part, fn):
         train_losses,
         test_losses,
         f"Q1({part}) Dataset {dset_type} Train Plot",
-        f"results/q1_{part}_dset{dset_type}_train_plot.png",
+        f"results/hw2/q1_{part}_dset{dset_type}_train_plot.png",
     )
-    show_samples(samples, f"results/q1_{part}_dset{dset_type}_samples.png")
+    show_samples(samples, f"results/hw2/q1_{part}_dset{dset_type}_samples.png")
 
 
 def visualize_q1a_data(dset_type):
@@ -78,9 +78,9 @@ def q1c_save_results(dset_type, q1_c):
         train_losses,
         test_losses,
         f"Q1(c) Dataset {dset_type} Train Plot",
-        f"results/q1_c_dset{dset_type}_train_plot.png",
+        f"results/hw2/q1_c_dset{dset_type}_train_plot.png",
     )
-    show_samples(samples, f"results/q1_c_dset{dset_type}_samples.png")
+    show_samples(samples, f"results/hw2/q1_c_dset{dset_type}_samples.png")
 
 
 def q1c_get_data(dset_type):
@@ -109,8 +109,8 @@ def b1a_save_results(b1_a):
     train_losses, test_losses, samples = b1_a(train_data, test_data, img_shape)
     samples = samples.astype("float32") / 3 * 255
     print(f"Final Test Loss: {test_losses[-1]:.4f}")
-    save_training_plot(train_losses, test_losses, f"B1(a) Train Plot", f"results/b1_a_train_plot.png")
-    show_samples(samples, f"results/b1_a_samples.png")
+    save_training_plot(train_losses, test_losses, f"B1(a) Train Plot", f"results/hw2/b1_a_train_plot.png")
+    show_samples(samples, f"results/hw2/b1_a_samples.png")
 
 
 def b1b_save_results(b1_b):
@@ -125,8 +125,8 @@ def b1b_save_results(b1_b):
     samples = np.stack((gray_samples, color_samples), axis=1).reshape((-1,) + img_shape)
 
     print(f"Final Test Loss: {test_losses[-1]:.4f}")
-    save_training_plot(train_losses, test_losses, f"B1(b) Train Plot", f"results/b1_b_train_plot.png")
-    show_samples(samples, f"results/b1_b_samples.png")
+    save_training_plot(train_losses, test_losses, f"B1(b) Train Plot", f"results/hw2/b1_b_train_plot.png")
+    show_samples(samples, f"results/hw2/b1_b_samples.png")
 
 
 def b1ab_get_data():
@@ -150,8 +150,8 @@ def b1c_save_results(b1_c):
     train_losses, test_losses, samples = b1_c(train_data, test_data)
     samples = samples.astype("float32") * 255
     print(f"Final Test Loss: {test_losses[-1]:.4f}")
-    save_training_plot(train_losses, test_losses, f"B1(c) Train Plot", f"results/b1_c_train_plot.png")
-    show_samples(samples, f"results/b1_c_samples.png")
+    save_training_plot(train_losses, test_losses, f"B1(c) Train Plot", f"results/hw2/b1_c_train_plot.png")
+    show_samples(samples, f"results/hw2/b1_c_samples.png")
 
 
 def b1c_get_data():
