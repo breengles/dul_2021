@@ -69,7 +69,6 @@ class PixelCNN(nn.Module):
 
         self.model = nn.Sequential(
             MaskedConv(color=color, dc=3, isB=False, in_channels=c, out_channels=cf, kernel_size=7, padding=3),
-            nn.ReLU(),
             ResidualBlock(cf, color),
             ResidualBlock(cf, color),
             ResidualBlock(cf, color),
@@ -233,7 +232,7 @@ class ConditionalPixelCNN(PixelCNN):
             return F.softmax(self(x, y), dim=1)
 
     def forward(self, x, y):
-        out = F.relu(self.conv_in(x, y))
+        out = self.conv_in(x, y)
 
         for rb in self.residual_blocks:
             out = rb(out, y)
