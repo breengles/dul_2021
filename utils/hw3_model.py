@@ -4,6 +4,7 @@ from torch import nn
 from torch.nn import functional as F
 from tqdm.auto import trange, tqdm
 from torch.distributions import Normal, Uniform
+from scipy.optimize import bisect
 
 
 class MaskedConv(nn.Conv2d):
@@ -61,12 +62,12 @@ class ResidualBlock(nn.Module):
 
 
 class PixelCNN(nn.Module):
-    def __init__(self, input_shape, cf=120, num_colors=2, color=True):
+    def __init__(self, input_shape, cf=120, num_gaussians=2, color=True):
         super().__init__()
         h, w, c = input_shape
         self.input_shape = (h, w)
         self.dc = c
-        self.num_colors = num_colors
+        self.num_gaussians = num_gaussians
 
         self.model = nn.Sequential(
             MaskedConv(color=color, dc=c, isB=False, in_channels=c, out_channels=cf, kernel_size=7, padding=3),
@@ -80,50 +81,52 @@ class PixelCNN(nn.Module):
             ResidualBlock(cf, color),
             MaskedConv(color=color, dc=c, isB=True, in_channels=cf, out_channels=cf, kernel_size=1),
             nn.ReLU(),
-            MaskedConv(color=color, dc=c, isB=True, in_channels=cf, out_channels=c * num_colors * 3, kernel_size=1),
+            MaskedConv(color=color, dc=c, isB=True, in_channels=cf, out_channels=c * num_gaussians * 3, kernel_size=1),
         )
 
-    def forward(self, x):
-        # return self.model(x).reshape(x.shape[0], self.num_classes, self.dc, *self.input_shape)
-        return self.model(x).reshape(x.shape[0], 3 * self.num_colors, self.dc, *self.input_shape).permute(0, 2, 1, 3, 4)
+    @property
+    def bdist(self):
+        return Uniform(torch.FloatTensor([0]).to(self.device), torch.FloatTensor([1]).to(self.device))
 
-    def predict_proba(self, x):
-        with torch.no_grad():
-            return F.softmax(self(x), dim=1)
+    def forward(self, x):
+        return (
+            self.model(x).reshape(x.shape[0], 3 * self.num_gaussians, self.dc, *self.input_shape).permute(0, 2, 1, 3, 4)
+        )
 
     @property
     def device(self):
         return self.model[0].weight.device
 
     def loss(self, batch):
-        return -self.log_prob(batch).mean()
+        z, log_det, *_ = self.flow(batch)
+        log_prob = self.bdist.log_prob(z).to(self.device) + log_det
+        return -log_prob.mean()
 
-    def log_prob(self, batch):
-        log_w, mu, log_s = self(batch).chunk(3, dim=2)
-        w = F.softmax(log_w, dim=2)
+    def flow(self, batch):
+        w_log, mu, log_s = self(batch).chunk(3, dim=2)
+        w = F.softmax(w_log, dim=2)
         dist = Normal(mu, log_s.exp())
 
-        x = batch.unsqueeze(1).repeat(1, 1, self.num_colors, 1, 1)
+        x = batch.unsqueeze(1).repeat(1, 1, self.num_gaussians, 1, 1)
         z = (dist.cdf(x) * w).sum(2)
         log_det = (dist.log_prob(x).exp() * w).sum(2).log()
-        return (
-            Uniform(torch.FloatTensor([0]).to(self.device), torch.FloatTensor([1]).to(self.device))
-            .log_prob(z)
-            .to(self.device)
-            + log_det
-        )
 
-    def _step(self, batch):
+        return z, log_det, dist, w
+
+    def _step(self, batch, train=True):
         batch = batch.to(self.device)
-        batch += Uniform(0, 0.5).sample(batch.shape).to(self.device)  # dequantizing
+
+        if train:
+            batch += Uniform(0.0, 0.5).sample(batch.shape).to(self.device)  # dequantizing
+
         return self.loss(batch)
 
+    @torch.no_grad()
     def _test(self, testloader):
         losses = []
 
-        with torch.no_grad():
-            for batch in tqdm(testloader, desc="Testing...", leave=False):
-                losses.append(self._step(batch).cpu().numpy())
+        for batch in tqdm(testloader, desc="Testing...", leave=False):
+            losses.append(self._step(batch, False).cpu().numpy())
 
         return np.mean(losses)
 
@@ -135,7 +138,7 @@ class PixelCNN(nn.Module):
         # test before train
         losses["test"].append(self._test(testloader))
 
-        for epoch in trange(epochs, desc="Fitting...", leave=True):
+        for _ in trange(epochs, desc="Fitting...", leave=True):
             train_losses = []
             for batch in trainloader:
                 loss = self._step(batch)
@@ -152,26 +155,44 @@ class PixelCNN(nn.Module):
 
         return self, losses
 
-    def sample(self, n):
-        sample = torch.zeros(n, self.dc, *self.input_shape).to(self.device)
-        with torch.no_grad():
-            for i in range(self.input_shape[0]):
-                for j in range(self.input_shape[1]):
-                    for c in range(self.dc):
-                        w_log, mu, log_s = torch.chunk(self(sample), 3, dim=2)
+    def inverse(self, w, mu, log_s):
+        n = w.shape[0]
+        z = self.bdist.sample((n,))
 
-                        # print(w_log.shape)
-                        # print(mu.shape)
-                        # print(log_s.shape)
+        outs = []
+        for i in range(n):
+            dist = Normal(mu[i], log_s[i].exp())
 
-                        w_log = w_log[:, c, :, i, j]
-                        mu = mu[:, c, :, i, j]
-                        log_s = log_s[:, c, :, i, j]
-                        w = F.softmax(w_log, dim=1)
+            def closure(x):
+                x = torch.FloatTensor(np.repeat(x, self.num_gaussians)).to(self.device)
+                return (w[i] * dist.cdf(x)).sum() - z[i]
 
-                        choice = torch.multinomial(w, 1).squeeze(-1)
-                        sample[:, c, i, j] = torch.normal(
-                            mu[torch.arange(n), choice], log_s[torch.arange(n), choice].exp()
-                        )
+            outs.append(bisect(closure, -20, 20))
 
-        return sample.cpu().numpy().transpose(0, 2, 3, 1)
+        return torch.FloatTensor(outs).to(self.device)
+
+    @torch.no_grad()
+    def sample(self, n=100):
+        samples = torch.zeros(n, self.dc, *self.input_shape, device=self.device)
+
+        for i in range(self.input_shape[0]):
+            for j in range(self.input_shape[1]):
+                for c in range(self.dc):
+                    w_log, mu, log_s = torch.chunk(self(samples), 3, dim=2)
+
+                    # take pixel-channel specific values
+                    w = F.softmax(w_log[:, c, :, i, j], dim=1)
+                    mu = mu[:, c, :, i, j]
+                    log_s = log_s[:, c, :, i, j]
+
+                    samples[:, c, i, j] = self.inverse(w, mu, log_s)
+
+        return samples.clip(0, 1).cpu().numpy().transpose(0, 2, 3, 1)
+
+
+if __name__ == "__main__":
+    batch = torch.ones((64, 1, 20, 20))
+
+    model = PixelCNN((20, 20, 1), num_gaussians=15, color=False)
+
+    model.sample(5)
