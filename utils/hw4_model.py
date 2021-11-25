@@ -36,6 +36,7 @@ class CNF(nn.Module):
     def __init__(self, io_dim, hidden_dim=64, width=1):
         super().__init__()
         self.width = width
+        self.io_dim = io_dim
         self.params = UWBNet(io_dim, hidden_dim, width)
 
     @property
@@ -44,7 +45,9 @@ class CNF(nn.Module):
 
     @property
     def bdist(self):
-        return MultivariateNormal(torch.zeros(2, device=self.device), torch.eye(2, device=self.device))
+        return MultivariateNormal(
+            torch.zeros(self.io_dim, device=self.device), torch.eye(self.io_dim, device=self.device)
+        )
 
     def forward(self, t, z):
         z = z[0]
@@ -86,7 +89,7 @@ class CNF(nn.Module):
         logdet_1 = torch.zeros((x.shape[0], 1)).to(self.device)
 
         z_t, logdet_t = odeint(
-            self, (x, logdet_1), torch.FloatTensor([t1, t0]).to(self.device), atol=1e-5, rtol=1e-5, method="dopri5"
+            self, (x, logdet_1), torch.FloatTensor([t1, t0]).to(self.device), atol=1e-2, rtol=1e-2, method="dopri5"
         )
 
         return z_t[-1], logdet_t[-1]
@@ -131,7 +134,7 @@ class CNF(nn.Module):
         batch = batch.to(self.device)
         z, log_det = self.flow(batch, t0, t1)
 
-        return self.bdist.log_prob(z) - log_det.flatten()
+        return self.bdist.log_prob(z).reshape(-1, 1) - log_det
 
     @torch.no_grad()
     def densities(self, data, t0=0, t1=10):
@@ -140,7 +143,7 @@ class CNF(nn.Module):
         for batch in tqdm(data, desc="Getting densities...", leave=False):
             probas.append(self.log_prob(batch, t0, t1).exp().cpu().numpy())
 
-        return np.hstack(probas)
+        return np.vstack(probas)
 
     @torch.no_grad()
     def latent(self, data, t0=0, t1=10):
@@ -151,6 +154,19 @@ class CNF(nn.Module):
             latents.append(self.flow(batch, t0, t1)[0].cpu().numpy())
 
         return np.vstack(latents)
+
+
+class HCNF(CNF):
+    def _trace(self, f, z, n=5):
+        trace = torch.zeros((z.shape[0], 1), device=self.device)
+
+        for _ in range(n):
+            # Rademacher
+            v = (2 * torch.randint(0, 2, (z.shape[1], 1)) - 1).to(torch.float32).to(self.device)
+            A = torch.autograd.grad((f @ v).sum(), z, create_graph=True)[0]
+            trace += A.matmul(v) / n
+
+        return trace
 
 
 if __name__ == "__main__":
