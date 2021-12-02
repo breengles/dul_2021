@@ -9,15 +9,17 @@ class Encoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
         self.main = nn.Sequential(
-            nn.Conv2d(3, 32, 3, 1, 1),
+            nn.Conv2d(3, 32, 3, 2, 1),  # 16 x 16
             nn.ReLU(),
-            nn.Conv2d(32, 64, 3, 2, 1),  # 16 x 16
+            nn.Conv2d(32, 64, 3, 2, 1),  # 8 x 8
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3, 2, 1),  # 8 x 8
+            nn.Conv2d(64, 128, 3, 2, 1),  # 4 x 4
             nn.ReLU(),
-            nn.Conv2d(128, 256, 3, 2, 1),  # 4 x 4
+            nn.Conv2d(128, 128, 3, 2, 1),  # 2 x 2
             nn.ReLU(),
-            nn.Conv2d(256, 2 * latent_dim, 1, 1, 0),
+            nn.Conv2d(128, 128, 3, 2, 1),  # 1 x 1
+            nn.ReLU(),
+            nn.Conv2d(128, 2 * latent_dim, 1, 1, 0),
         )
 
     def forward(self, x):
@@ -31,13 +33,15 @@ class Decoder(nn.Module):
         self.main = nn.Sequential(
             nn.Conv2d(latent_dim, 128, 1, 1, 0),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, 4, 2, 1),  # 8 x 8
+            nn.ConvTranspose2d(128, 128, 4, 2, 1),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1),  # 16 x 16
+            nn.ConvTranspose2d(128, 128, 4, 2, 1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, 2, 1),  # 32 x 32
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
             nn.ReLU(),
-            nn.Conv2d(32, 3, 3, 1, 1),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
 
     def forward(self, x):
