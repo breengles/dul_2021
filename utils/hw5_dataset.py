@@ -7,8 +7,7 @@ class MyDataset(Dataset):
     def __init__(self, data) -> None:
         super().__init__()
 
-        self.data = torch.FloatTensor(data.transpose(0, 3, 1, 2))
-        self.data = self.data / 255 * 2 - 1
+        self.data = torch.tensor(data.transpose(0, 3, 1, 2), dtype=torch.float32) / 255 * 2 - 1
 
     def __len__(self):
         return len(self.data)
