@@ -499,13 +499,15 @@ class CodeBook(nn.Module):
     def forward(self, z):
         n, _, h, w = z.shape
 
-        z_ = z.permute(0, 2, 3, 1).reshape(-1, self.code_dim)
-        distances = (
-            (z_ ** 2).sum(dim=1, keepdim=True)
-            - 2 * torch.matmul(z_, self.embedding.weight.t())
-            + (self.embedding.weight.t() ** 2).sum(dim=0, keepdim=True)
-        )
-        encoding_indices = torch.argmin(distances, dim=1).reshape(n, h, w)
+        with torch.no_grad():
+            z_ = z.permute(0, 2, 3, 1).reshape(-1, self.code_dim)
+            distances = (
+                (z_ ** 2).sum(dim=1, keepdim=True)
+                - 2 * torch.matmul(z_, self.embedding.weight.t())
+                + (self.embedding.weight.t() ** 2).sum(dim=0, keepdim=True)
+            )
+            encoding_indices = torch.argmin(distances, dim=1).reshape(n, h, w)
+
         quantized = self.embedding(encoding_indices).permute(0, 3, 1, 2)
 
         return quantized, (quantized - z).detach() + z, encoding_indices
