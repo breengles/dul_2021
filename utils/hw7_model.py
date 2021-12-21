@@ -203,7 +203,7 @@ class SNGAN(nn.Module):
         c_scheduler = LambdaLR(self.c_optim, lambda epoch: (epochs - epoch) / epochs, last_epoch=-1)
 
         for epoch in trange(epochs, desc="Training...", leave=False):
-            for batch_real in tqdm(trainloader, desc="Batch", leave=False):
+            for batch_real in trainloader:
                 total_iters += 1
 
                 batch_real = batch_real.to(self.device)
@@ -305,12 +305,8 @@ class BiGAN(nn.Module):
         self.cls_optim = Adam(self.cls.parameters(), lr=lr)
 
     def reset_cls(self):
-        device = self.device
-
         self.cls = nn.Linear(self.z_dim, 10)
         self.cls_optim = Adam(self.cls.parameters(), lr=self.lr)
-
-        self.to(device)
 
     @property
     def device(self):
@@ -337,7 +333,7 @@ class BiGAN(nn.Module):
 
         for epoch in trange(epochs, desc="Training", leave=False):
             batch_losses = []
-            for batch_real, _ in tqdm(trainloader, desc="Batch...", leave=False):
+            for batch_real, _ in trainloader:
                 batch_real = batch_real.to(self.device)
 
                 d_loss = self.adversarial_loss(batch_real)
@@ -349,7 +345,9 @@ class BiGAN(nn.Module):
                 g_loss = -self.adversarial_loss(batch_real)
 
                 self.g_optim.zero_grad()
+                self.e_optim.zero_grad()
                 g_loss.backward()
+                self.e_optim.step()
                 self.g_optim.step()
 
                 losses.append(d_loss.detach().cpu().numpy())
