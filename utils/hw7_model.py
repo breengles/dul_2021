@@ -1,11 +1,11 @@
+import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Normal
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from tqdm.notebook import tqdm, trange
-import numpy as np
-import torch.nn.functional as F
 
 
 class DepthToSpace(nn.Module):
