@@ -305,8 +305,12 @@ class BiGAN(nn.Module):
         self.cls_optim = Adam(self.cls.parameters(), lr=lr)
 
     def reset_cls(self):
+        device = self.device
+
         self.cls = nn.Linear(self.z_dim, 10)
         self.cls_optim = Adam(self.cls.parameters(), lr=self.lr)
+
+        self.to(device)
 
     @property
     def device(self):
