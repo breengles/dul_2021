@@ -68,8 +68,7 @@ class Downsample_Conv2d(nn.Module):
         self.conv = nn.Conv2d(in_dim, out_dim, kernel_size, stride, padding, bias=bias)
 
     def forward(self, x):
-        x_ = self.s2d(x)
-        x_ = sum(x_.chunk(4, dim=1)) / 4.0
+        x_ = sum(self.s2d(x).chunk(4, dim=1)) / 4.0
         return self.conv(x_)
 
 
@@ -108,13 +107,16 @@ class ResnetBlockDown(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, n_filters=256):
+    def __init__(self, n_filters=256, z_dim=128):
         super().__init__()
-        self.fc = nn.Linear(128, 4 * 4 * 256)
+        self.n_filters = n_filters
+        self.z_dim = z_dim
+
+        self.fc = nn.Linear(z_dim, 4 * 4 * n_filters)
         self.main = nn.Sequential(
-            ResnetBlockUp(in_dim=256, n_filters=n_filters),
-            ResnetBlockUp(in_dim=n_filters, n_filters=n_filters),
-            ResnetBlockUp(in_dim=n_filters, n_filters=n_filters),
+            ResnetBlockUp(n_filters, n_filters),
+            ResnetBlockUp(n_filters, n_filters),
+            ResnetBlockUp(n_filters, n_filters),
             nn.BatchNorm2d(n_filters),
             nn.ReLU(),
             nn.Conv2d(n_filters, 3, kernel_size=(3, 3), padding=1),
@@ -128,11 +130,11 @@ class Generator(nn.Module):
         return next(self.parameters()).device
 
     def forward(self, z):
-        out = self.fc(z).reshape(-1, 256, 4, 4)
+        out = self.fc(z).reshape(-1, self.n_filters, 4, 4)
         return self.main(out)
 
     def sample(self, n_samples=100):
-        z = self.bdist.sample([n_samples, 128]).to(self.device)
+        z = self.bdist.sample([n_samples, self.z_dim]).to(self.device)
         return self(z)
 
 
@@ -140,11 +142,11 @@ class Critic(nn.Module):
     def __init__(self, n_filters=256):
         super().__init__()
         self.main = nn.Sequential(
-            ResnetBlockDown(3, n_filters=n_filters),
+            ResnetBlockDown(3, n_filters),
             ResnetBlockDown(n_filters, n_filters),
-            ResnetBlockDown(n_filters, 256),
+            ResnetBlockDown(n_filters, n_filters),
             nn.ReLU(),
-            nn.Conv2d(256, 128, kernel_size=(3, 3), padding=1),
+            nn.Conv2d(n_filters, 128, kernel_size=(3, 3), padding=1),
             nn.ReLU(),
             nn.Conv2d(128, 128, kernel_size=(4, 4), padding=0),
         )
@@ -194,13 +196,13 @@ class SNGAN(nn.Module):
     def fit(self, trainloader, n_iter):
         losses = []
         total_iters = 0
-        epochs = self.n_critic * n_iter // len(trainloader)
+        epochs = n_iter // len(trainloader)
+        # epochs = self.n_critic * n_iter // len(trainloader)
 
         g_scheduler = LambdaLR(self.g_optim, lambda epoch: (epochs - epoch) / epochs, last_epoch=-1)
         c_scheduler = LambdaLR(self.c_optim, lambda epoch: (epochs - epoch) / epochs, last_epoch=-1)
 
         for epoch in trange(epochs, desc="Training...", leave=False):
-            batch_losses = []
             for batch_real in tqdm(trainloader, desc="Batch", leave=False):
                 total_iters += 1
 
@@ -213,6 +215,8 @@ class SNGAN(nn.Module):
                 critic_loss.backward()
                 self.c_optim.step()
 
+                losses.append(critic_loss.detach().cpu().numpy())
+
                 if total_iters % self.n_critic == 0:
                     g_loss = -self.critic(self.generator.sample(batch_real.shape[0])).mean()
 
@@ -220,12 +224,8 @@ class SNGAN(nn.Module):
                     g_loss.backward()
                     self.g_optim.step()
 
-                    g_scheduler.step()
-                    c_scheduler.step()
-
-                    batch_losses.append(g_loss.detach().cpu().numpy())
-
-            losses.append(np.mean(batch_losses))
+            g_scheduler.step()
+            c_scheduler.step()
 
         return np.array(losses)
 
@@ -292,6 +292,7 @@ class BiGAN(nn.Module):
         super().__init__()
         self.z_dim = z_dim
         self.x_dim = x_dim
+        self.lr = lr
 
         self.generator = G(x_dim, z_dim)
         self.discriminator = D(x_dim, z_dim)
@@ -302,6 +303,10 @@ class BiGAN(nn.Module):
         self.d_optim = Adam(self.discriminator.parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=l2)
         self.e_optim = Adam(self.encoder.parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=l2)
         self.cls_optim = Adam(self.cls.parameters(), lr=lr)
+
+    def reset_cls(self):
+        self.cls = nn.Linear(self.z_dim, 10)
+        self.cls_optim = Adam(self.cls.parameters(), lr=self.lr)
 
     @property
     def device(self):
@@ -317,8 +322,7 @@ class BiGAN(nn.Module):
         x_real = x_real.reshape(bs, -1)
 
         return (
-            -0.5 * (self.discriminator(x_real, z_real)).log().mean()
-            - 0.5 * (1 - self.discriminator(x_fake, z_fake)).log().mean()
+            -(self.discriminator(x_real, z_real)).log().mean() - (1 - self.discriminator(x_fake, z_fake)).log().mean()
         )
 
     def fit(self, trainloader, epochs):
@@ -329,7 +333,7 @@ class BiGAN(nn.Module):
 
         for epoch in trange(epochs, desc="Training", leave=False):
             batch_losses = []
-            for batch_real in tqdm(trainloader, desc="Batch...", leave=False):
+            for batch_real, _ in tqdm(trainloader, desc="Batch...", leave=False):
                 batch_real = batch_real.to(self.device)
 
                 d_loss = self.adversarial_loss(batch_real)
@@ -344,24 +348,19 @@ class BiGAN(nn.Module):
                 g_loss.backward()
                 self.g_optim.step()
 
-                batch_losses.append(d_loss.detach().cpu().numpy())
+                losses.append(d_loss.detach().cpu().numpy())
 
             g_scheduler.step()
             d_scheduler.step()
 
-            losses.append(np.mean(batch_losses))
-
         return np.array(losses)
 
-    def test_cls(self, testloader):
-        pass
-
-    def fit_cls(self, trainloader, testloader, epochs):
-        losses = {"train": [], "test": []}
+    def fit_cls(self, trainloader, epochs):
+        losses = []
 
         self.encoder.eval()
 
-        for epoch in trange(epochs, desc="Train classifier", leave=False):
+        for epoch in trange(epochs, desc="Train classifier...", leave=False):
             batch_losses = []
             for x, y in trainloader:
                 x = x.to(self.device)
@@ -378,3 +377,28 @@ class BiGAN(nn.Module):
                 self.cls_optim.step()
 
                 batch_losses.append(loss.detach().cpu().numpy())
+
+            losses.append(np.mean(batch_losses))
+
+        self.train()
+
+        return losses
+
+    @torch.no_grad()
+    def sample(self, n):
+        self.generator.eval()
+        z = (torch.rand(n, self.z_dim).to(self.device) - 0.5) * 2
+        self.generator.train()
+        return self.generator(z).reshape(-1, 1, 28, 28).cpu().numpy()
+
+    @torch.no_grad()
+    def recon(self, x):
+        self.generator.eval()
+        self.encoder.eval()
+
+        z = self.encoder(x.to(self.device))
+        recons = self.generator(z).reshape(-1, 1, 28, 28)
+
+        self.train()
+
+        return recons.cpu().numpy()
