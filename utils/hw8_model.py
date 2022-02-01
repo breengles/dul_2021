@@ -149,8 +149,9 @@ class AVB(nn.Module):
         z_encoded = self.encoder(batch, noise)
         batch_recon = self.decoder(z_encoded)
 
-        # todo: change to BCE loss as img is 0, 1
-        recon_loss = F.mse_loss(batch, batch_recon, reduction="none").reshape(batch.shape[0], -1).sum(-1)
+        recon_loss = (
+            F.binary_cross_entropy_with_logits(batch, batch_recon, reduction="none").reshape(batch.shape[0], -1).sum(-1)
+        )
         T_real = self.clf(batch, z_encoded)
         elbo_loss = recon_loss + T_real
 
@@ -160,7 +161,7 @@ class AVB(nn.Module):
         # fake_labels = torch.zeros_like(T_fake)
         # clf_loss = F.binary_cross_entropy(T_real, real_labels) + F.binary_cross_entropy(T_fake, fake_labels)
 
-        clf_loss = -(torch.log(self.clf(batch, z_encoded)) + torch.log(1 - torch.sigmoid(self.clf(batch, z))))
+        clf_loss = -(torch.log(torch.sigmoid(T_real)) + torch.log(1 - torch.sigmoid(self.clf(batch, z))))
 
         return elbo_loss.mean(), clf_loss.mean()
 
@@ -225,7 +226,7 @@ class AVB(nn.Module):
 
     @torch.no_grad()
     def _tensor2image(self, tensor):
-        return (0.5 * (tensor.clip(-1, 1) + 1)).cpu().numpy()
+        return torch.sigmoid(tensor).cpu().numpy()
 
     @torch.no_grad()
     def sample(self, n):
