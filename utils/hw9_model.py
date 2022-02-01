@@ -139,13 +139,15 @@ class CEBM(nn.Module):
 
         # f(x)[y]
         self.clf = nn.Sequential(
-            nn.Linear(inp_dim, 64),
+            nn.Linear(inp_dim, 128),
             nn.LeakyReLU(0.2),
-            nn.Linear(64, 64),
+            nn.Linear(128, 128),
             nn.LeakyReLU(0.2),
-            nn.Linear(64, 64),
+            nn.Linear(128, 128),
             nn.LeakyReLU(0.2),
-            nn.Linear(64, num_classes),
+            nn.Linear(128, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, num_classes),
         )
 
         self.buffer = Buffer((2,), max_size=buffer_size, device=buffer_device)
