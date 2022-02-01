@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.optim import Adam
 from tqdm.auto import trange
-from torch.nn import functional as F
 
 
 class Buffer:
