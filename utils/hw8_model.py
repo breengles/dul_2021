@@ -127,8 +127,7 @@ class Decoder(nn.Module):
         )
 
     def forward(self, x):
-        batch_size = x.shape[0]
-        return self.convt(self.linear(x).reshape(batch_size, 128, 4, 4))
+        return self.convt(self.linear(x).reshape(x.shape[0], 128, 4, 4))
 
 
 class AVB(nn.Module):
@@ -150,7 +149,8 @@ class AVB(nn.Module):
         z_encoded = self.encoder(batch, noise)
         batch_recon = self.decoder(z_encoded)
 
-        recon_loss = F.mse_loss(batch, batch_recon, reduction="none").reshape(batch.shape[0], -1).mean(-1)
+        # todo: change to BCE loss as img is 0, 1
+        recon_loss = F.mse_loss(batch, batch_recon, reduction="none").reshape(batch.shape[0], -1).sum(-1)
         T_real = self.clf(batch, z_encoded)
         elbo_loss = recon_loss + T_real
 
