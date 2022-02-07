@@ -131,7 +131,7 @@ class Decoder(nn.Module):
 
 
 class AVB(nn.Module):
-    def __init__(self, latent_dim=32, noise_dim=4):
+    def __init__(self, latent_dim=64, noise_dim=16):
         super().__init__()
 
         self.encoder = Encoder(latent_dim=latent_dim, noise_dim=noise_dim)
@@ -145,34 +145,27 @@ class AVB(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def _loss(self, batch, z, noise):
+    def _gen_loss(self, batch):
+        noise = self.noise_dist.sample((batch.shape[0],)).to(self.device)
         z_encoded = self.encoder(batch, noise)
-        batch_recon = self.decoder(z_encoded)
 
-        recon_loss = (
-            F.binary_cross_entropy_with_logits(batch, batch_recon, reduction="none").reshape(batch.shape[0], -1).sum(-1)
-        )
-        T_real = self.clf(batch, z_encoded)
-        elbo_loss = recon_loss + T_real
+        T = self.clf(batch, z_encoded).mean()
+        recon = self.decoder(z_encoded)
+        loss = T + F.binary_cross_entropy_with_logits(recon, batch, reduction="sum") / batch.shape[0]
+        return loss
 
-        # T_real = torch.sigmoid(T_real)
-        # T_fake = torch.sigmoid(self.clf(batch, z))
-        # real_labels = torch.ones_like(T_real)
-        # fake_labels = torch.zeros_like(T_fake)
-        # clf_loss = F.binary_cross_entropy(T_real, real_labels) + F.binary_cross_entropy(T_fake, fake_labels)
-
-        clf_loss = -(torch.log(torch.sigmoid(T_real)) + torch.log(1 - torch.sigmoid(self.clf(batch, z))))
-
-        return elbo_loss.mean(), clf_loss.mean()
-
-    def _step(self, batch):
-        batch = batch.to(self.device)
-
+    def _clf_loss(self, batch):
         z = self.z_dist.sample((batch.shape[0],)).to(self.device)
         noise = self.noise_dist.sample((batch.shape[0],)).to(self.device)
+        z_encoded = self.encoder(batch, noise)
 
-        elbo_loss, clf_loss = self._loss(batch, z, noise)
-        return elbo_loss, clf_loss
+        T_real = self.clf(batch, z_encoded)
+        T_fake = self.clf(batch, z)
+        real_labels = torch.ones_like(T_real)
+        fake_labels = torch.zeros_like(T_fake)
+        loss_real = F.binary_cross_entropy_with_logits(T_real, real_labels)
+        loss_fake = F.binary_cross_entropy_with_logits(T_fake, fake_labels)
+        return loss_real + loss_fake
 
     @torch.no_grad()
     def _test(self, testloader):
@@ -182,9 +175,11 @@ class AVB(nn.Module):
         clf_losses = 0
 
         for batch in tqdm(testloader, desc="Testing...", leave=False):
-            elbo_loss, classifier_loss = self._step(batch)
+            batch = batch.to(self.device)
+            elbo_loss = self._gen_loss(batch)
+            clf_loss = self._clf_loss(batch)
             elbo_losses += elbo_loss
-            clf_losses += classifier_loss
+            clf_losses += clf_loss
 
         self.train()
 
@@ -202,23 +197,22 @@ class AVB(nn.Module):
 
         for _ in trange(epochs, desc="Training"):
             for batch in trainloader:
-                elbo_loss, classifier_loss = self._step(batch)
+                batch = batch.to(self.device)
 
-                loss = elbo_loss + classifier_loss
+                elbo_loss = self._gen_loss(batch)
 
                 encoder_optim.zero_grad()
                 decoder_optim.zero_grad()
-                clf_optim.zero_grad()
-
-                loss.backward()
-
-                # nn.utils.clip_grad_norm_(self.parameters(), 1.0)
-
+                elbo_loss.backward()
                 encoder_optim.step()
                 decoder_optim.step()
+
+                clf_loss = self._clf_loss(batch)
+                clf_optim.zero_grad()
+                clf_loss.backward()
                 clf_optim.step()
 
-                train_losses.append((elbo_loss.detach().cpu().numpy(), classifier_loss.detach().cpu().numpy()))
+                train_losses.append((elbo_loss.detach().cpu().numpy(), clf_loss.detach().cpu().numpy()))
 
             test_losses.append(self._test(testloader))
 
@@ -226,7 +220,7 @@ class AVB(nn.Module):
 
     @torch.no_grad()
     def _tensor2image(self, tensor):
-        return torch.sigmoid(tensor).cpu().numpy()
+        return tensor.clip(0, 1).cpu().numpy()
 
     @torch.no_grad()
     def sample(self, n):
