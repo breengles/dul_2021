@@ -7,23 +7,19 @@ from .utils import *
 
 
 def load_mnist():
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.5,), (0.5,))
-                                    ])
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
-    _ = MNIST(root='./', train=True, transform=transform, download=True)
+    _ = MNIST(root="./", train=True, transform=transform, download=True)
 
-    _ = MNIST(root='./', train=False, transform=transform, download=True)
+    _ = MNIST(root="./", train=False, transform=transform, download=True)
 
 
 def get_mnist():
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.5,), (0.5,))
-                                    ])
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
-    train_set = MNIST(root='./', train=True, transform=transform, download=True)
+    train_set = MNIST(root="./", train=True, transform=transform, download=True)
 
-    test_set = MNIST(root='./', train=False, transform=transform, download=True)
+    test_set = MNIST(root="./", train=False, transform=transform, download=True)
 
     return train_set, test_set
 
@@ -42,23 +38,23 @@ def show_samples(img):
     img = img.clip(0, 1)
 
     plt.figure(figsize=(15, 15))
-    plt.imshow(img)
-    plt.axis('off')
+    plt.imshow(img, cmap="gray", vmax=1, vmin=0)
+    plt.axis("off")
     plt.show()
 
 
-def plot_ce_training(train_ae, train_clf, title='Losses'):
+def plot_ce_training(train_ae, train_clf, title="Losses"):
     plt.figure()
     x = np.arange(len(train_ae)) / len(train_ae)
-    x2 = np.arange(len(train_clf)) / len(train_clf) * len(train_ae)
+    x2 = np.arange(len(train_clf)) / len(train_clf)
 
-    plt.plot(x, train_ae, label='ae loss')
-    plt.plot(x2, train_clf, label='clf loss')
+    plt.plot(x, train_ae, label="ae loss")
+    plt.plot(x2, train_clf, label="clf loss")
 
     plt.legend()
     plt.title(title)
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss")
 
 
 def q1_results(q1):
@@ -69,27 +65,27 @@ def q1_results(q1):
     show_samples(samples)
 
 
-def plot_rt_training(losses, title='Losses'):
+def plot_rt_training(losses, title="Losses"):
     plt.figure()
     x = np.arange(len(losses[0]))
 
-    plt.plot(x, losses[0], label='loss')
+    plt.plot(x, losses[0], label="loss")
 
     plt.legend()
     plt.title(title)
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss")
     plt.show()
 
     plt.figure()
     x = np.arange(len(losses[1]))
 
-    plt.plot(x, losses[1], label='acc')
+    plt.plot(x, losses[1], label="acc")
 
     plt.legend()
     plt.title(title)
-    plt.xlabel('Iteration')
-    plt.ylabel('Accuracy')
+    plt.xlabel("Iteration")
+    plt.ylabel("Accuracy")
     plt.show()
 
 
@@ -98,5 +94,4 @@ def q2_results(q2):
     loss, acc = q2(train_data)
 
     plot_rt_training((loss, acc))
-
 
