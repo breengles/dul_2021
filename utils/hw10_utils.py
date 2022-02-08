@@ -33,12 +33,13 @@ def tensor_to_image(x):
 
 def show_samples(img):
     img = torch.Tensor(img)
+
     img = make_grid(img, nrow=10)
     img = tensor_to_image(img)
     img = img.clip(0, 1)
 
     plt.figure(figsize=(15, 15))
-    plt.imshow(img, cmap="gray", vmax=1, vmin=0)
+    plt.imshow(img)
     plt.axis("off")
     plt.show()
 
