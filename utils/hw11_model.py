@@ -11,7 +11,7 @@ from tqdm.auto import tqdm, trange
 
 
 class Net(nn.Module):
-    def __init__(self, in_dim=1, out_dim=128, hid_dim_full=128):
+    def __init__(self, in_dim=1, out_dim=128, hid_dim_full=128, conv_to_fc=4 * 6 * 6):
         super(Net, self).__init__()
 
         self.conv1 = nn.Conv2d(in_dim, 16, 5, padding=2)
@@ -27,7 +27,7 @@ class Net(nn.Module):
         self.bn5 = nn.BatchNorm2d(32)
         self.bn6 = nn.BatchNorm2d(4)
 
-        self.conv_to_fc = 4 * 6 * 6
+        self.conv_to_fc = conv_to_fc
         self.fc1 = nn.Linear(self.conv_to_fc, hid_dim_full)
         self.fc2 = nn.Linear(hid_dim_full, int(hid_dim_full // 2))
 
@@ -41,7 +41,7 @@ class Net(nn.Module):
         x = F.relu(self.bn5(self.conv5(x)))
         x = F.relu(self.bn6(self.conv6(x)))
 
-        x = x.view(-1, self.conv_to_fc)
+        x = x.reshape(-1, self.conv_to_fc)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
 
@@ -81,12 +81,15 @@ class BYOL(nn.Module):
             tp.data.copy_(tau * tp.data + (1 - tau) * sp.data)
 
     def _loss(self, v1, v2):
-        z_student = self.student(v1)
-        z_predictor = F.normalize(self.predictor(z_student))
+        """
+        mse(x, y) ~ <(x-y), (x-y)> = <x, x> + <y, y> - 2 <x, y> = 1 + 1 - 2 <x, y> = 2 - 2 <x, y>
+        """
 
-        z_teacher = F.normalize(self.teacher(v2))
+        z_predictor = F.normalize(self.predictor(self.student(v1)), dim=1)
+        z_teacher = F.normalize(self.teacher(v2), dim=1)
 
-        return F.mse_loss(z_predictor, z_teacher, reduction="none").sum(-1).mean()
+        return F.mse_loss(z_predictor, z_teacher)
+        # return F.mse_loss(z_predictor, z_teacher, reduction="none").sum(-1).mean()
 
     def _step(self, batch):
         batch = batch.to(self.device)
@@ -101,7 +104,7 @@ class BYOL(nn.Module):
 
     def fit(self, trainloader, epochs=10, lr=1e-4):
         losses = []
-        optim = Adam(self.student.parameters(), lr=lr)
+        optim = Adam(list(self.student.parameters()) + list(self.predictor.parameters()), lr=lr)
 
         for _ in trange(epochs, desc="Training..."):
             for batch in trainloader:
@@ -111,7 +114,7 @@ class BYOL(nn.Module):
                 loss.backward()
                 optim.step()
 
-                self.soft_update(self.student, self.teacher, 0.998)
+                self.soft_update(self.student, self.teacher, 0.99)
 
                 losses.append(loss.detach().cpu().numpy())
 
@@ -119,11 +122,8 @@ class BYOL(nn.Module):
 
     @torch.no_grad()
     def encode(self, x):
-        self.eval()
-
-        x = x.to(self.device)
-        x = transforms.Resize(24)(x)
-
+        self.student.eval()
+        x = transforms.Resize(24)(x).to(self.device)
         return self.student(x)
         # return self.predictor(self.student(x))
 
@@ -133,7 +133,7 @@ class BTWINS(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.lam = lam
-        self.main = Net(3, latent_dim)
+        self.main = Net(3, latent_dim, conv_to_fc=4 * 7 * 7)
 
         self.transforms = transforms.Compose(
             [
@@ -153,41 +153,48 @@ class BTWINS(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-
     @staticmethod
     def C(z1, z2):
         numerator = torch.einsum("bi,bj->ij", z1, z2)
         denom = torch.sqrt((z1 ** 2).sum(0)) * torch.sqrt((z2 ** 2).sum(0)).reshape(-1, 1)  # reshape to get ij matrix
         return numerator / denom / z1.shape[0]
 
-
-    def step(self, batch):
+    def _step(self, batch):
         batch = batch.to(self.device)
-        
+
         t1, t2 = self.transforms(batch), self.transforms(batch)
         z1, z2 = self(t1), self(t2)
-        
+
         z1 = (z1 - z1.mean(0)) / z1.std(0)
         z2 = (z2 - z2.mean(0)) / z2.std(0)
-        
+
         c = self.C(z1, z2)
         invariance_term = ((1 - c.diag()) ** 2).sum()
-        
-        off_diag = c.masked_select(~torch.eye(self.latent_dim, dtype=bool))
-        rr_term = self.lam * (off_diag ** 2).sum()
-        
-        loss = invariance_term + rr_term
-        
-        
-        
-        
 
+        off_diag = c.masked_select(~torch.eye(self.latent_dim, dtype=bool, device=self.device))
+        rr_term = self.lam * (off_diag ** 2).sum()
+
+        return invariance_term + rr_term
 
     def fit(self, trainloader, epochs=10, lr=1e-4):
         losses = []
 
-        optim = Adam(self.parameters(), lr=lr)        
+        optim = Adam(self.parameters(), lr=lr)
 
         for _ in trange(epochs, desc="Training..."):
             for batch in trainloader:
-                
+                loss = self._step(batch[0])
+
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
+
+                losses.append(loss.detach().cpu().numpy())
+
+        return np.array(losses)
+
+    @torch.no_grad()
+    def encode(self, x):
+        self.eval()
+        x = transforms.Resize(28)(x).to(self.device)
+        return self(x)
