@@ -3,3 +3,4 @@
 data/
 .python-version
 MNIST/
+cifar-10-batches-py/
