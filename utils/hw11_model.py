@@ -11,7 +11,7 @@ from tqdm.auto import tqdm, trange
 
 
 class Net(nn.Module):
-    def __init__(self, in_dim=1, out_dim=128, hid_dim_full=128, conv_to_fc=4 * 6 * 6):
+    def __init__(self, in_dim=1, out_dim=128, hid_dim_full=128, conv_to_fc=4 * 7 * 7):
         super(Net, self).__init__()
 
         self.conv1 = nn.Conv2d(in_dim, 16, 5, padding=2)
@@ -59,7 +59,7 @@ class BYOL(nn.Module):
 
         self.transforms = transforms.Compose(
             [
-                transforms.RandomResizedCrop(24),
+                transforms.RandomResizedCrop(28),
                 transforms.RandomHorizontalFlip(),
                 transforms.GaussianBlur(9),
                 transforms.Normalize(0.5, 0.5),
@@ -123,9 +123,8 @@ class BYOL(nn.Module):
     @torch.no_grad()
     def encode(self, x):
         self.student.eval()
-        x = transforms.Resize(24)(x).to(self.device)
-        return self.student(x)
-        # return self.predictor(self.student(x))
+        # x = transforms.Resize(24)(x)
+        return self.student(x.to(self.device))
 
 
 class BTWINS(nn.Module):
@@ -133,11 +132,11 @@ class BTWINS(nn.Module):
         super().__init__()
         self.latent_dim = latent_dim
         self.lam = lam
-        self.main = Net(3, latent_dim, conv_to_fc=4 * 7 * 7)
+        self.main = Net(3, latent_dim, conv_to_fc=4 * 8 * 8)
 
         self.transforms = transforms.Compose(
             [
-                transforms.RandomResizedCrop(28),
+                transforms.RandomResizedCrop(32),
                 transforms.RandomHorizontalFlip(),
                 transforms.GaussianBlur(9),
                 transforms.RandomApply([transforms.ColorJitter(0.5, 0.5, 0.5, 0.1)], p=0.8),
@@ -156,8 +155,7 @@ class BTWINS(nn.Module):
     @staticmethod
     def C(z1, z2):
         numerator = torch.einsum("bi,bj->ij", z1, z2)
-        denom = torch.sqrt((z1 ** 2).sum(0)) * torch.sqrt((z2 ** 2).sum(0)).reshape(-1, 1)  # reshape to get ij matrix
-        return numerator / denom / z1.shape[0]
+        return numerator / z1.shape[0]
 
     def _step(self, batch):
         batch = batch.to(self.device)
@@ -196,5 +194,5 @@ class BTWINS(nn.Module):
     @torch.no_grad()
     def encode(self, x):
         self.eval()
-        x = transforms.Resize(28)(x).to(self.device)
-        return self(x)
+        # x = transforms.Resize(28)(x)
+        return self(x.to(self.device))
