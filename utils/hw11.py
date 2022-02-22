@@ -3,7 +3,7 @@ import torch.optim as opt
 import torch.utils.data as data
 from sklearn.metrics import accuracy_score
 from torchvision import transforms
-from torchvision.datasets import MNIST, CIFAR10
+from torchvision.datasets import CIFAR10, MNIST
 
 from .utils import *
 

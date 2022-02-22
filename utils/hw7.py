@@ -12,9 +12,10 @@ from .utils import *
 
 CLASSES = ("plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")
 
-import numpy as np
 import math
 import sys
+
+import numpy as np
 
 softmax = None
 model = None

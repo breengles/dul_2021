@@ -1,11 +1,12 @@
-from itertools import product
-from .utils import *
 import torch
+
+from .utils import *
 
 
 def q1_a_sample_data(image_file, n, d):
-    from PIL import Image
     import itertools
+
+    from PIL import Image
 
     im = Image.open(image_file).resize((d, d)).convert("L")
     im = np.array(im).astype("float32")

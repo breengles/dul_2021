@@ -2,9 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union, List, Tuple
-from tqdm.auto import trange, tqdm
 from torch.distributions import Normal
+from tqdm.auto import tqdm, trange
 
 
 class Encoder(nn.Module):  # copied from hw5
@@ -135,7 +134,7 @@ class MaskedLinear(nn.Linear):  # copied from hw1
 
 
 class MADE(nn.Module):  # copied from hw1
-    def __init__(self, inp_dim, d, hidden_sizes: Union[List, Tuple] = (512, 512)):
+    def __init__(self, inp_dim, d, hidden_sizes=(512, 512)):
         super().__init__()
 
         self.hidden_sizes = hidden_sizes

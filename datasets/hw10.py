@@ -1,7 +1,6 @@
-import torch
+import numpy as np
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import rotate
-import numpy as np
 
 
 class RDataset(Dataset):
