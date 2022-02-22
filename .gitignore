@@ -2,8 +2,10 @@
 .vscode/
 __pycache__/
 .idea/
-data/
 .python-version
+test.py
+data/
 MNIST/
 cifar-10-batches-py/
 cifar-10-python.tar.gz
+
