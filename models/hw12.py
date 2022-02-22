@@ -1,15 +1,13 @@
-from turtle import distance
 import torch
-import numpy as np
-from torch import nn, threshold
-from torch.optim import Adam
-from tqdm.auto import trange
+from torch import nn
 from torch.nn import functional as F
 from torchvision import transforms as T
 
+from .base import BaseModule
 
-class VAT(nn.Module):
-    def __init__(self, xi=10.0):
+
+class VAT(BaseModule):
+    def __init__(self, xi=1.0):
         super().__init__()
 
         self.xi = xi
@@ -44,13 +42,10 @@ class VAT(nn.Module):
             # second conv 192
             nn.Conv2d(192, 192, (3, 3)),
             nn.LeakyReLU(0.1),
-            nn.BatchNorm2d(192),
             nn.Conv2d(192, 192, (1, 1)),
             nn.LeakyReLU(0.1),
-            nn.BatchNorm2d(192),
             nn.Conv2d(192, 192, (1, 1)),
             nn.LeakyReLU(0.1),
-            nn.BatchNorm2d(192),
         )
 
         self.clf = nn.Sequential(nn.Flatten(), nn.Linear(192, 10))
@@ -76,12 +71,8 @@ class VAT(nn.Module):
     def forward(self, x):
         return self.clf(self.conv(x))
 
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
     @torch.no_grad()
-    def _test(self, testloader):
+    def test(self, testloader):
         self.eval()
 
         acc = 0
@@ -98,7 +89,7 @@ class VAT(nn.Module):
 
         return acc.cpu().numpy()
 
-    def _step(self, batch):
+    def step(self, batch):
         imgs, labels = batch
         imgs = imgs.to(self.device)
         labels = labels.to(self.device)
@@ -106,31 +97,16 @@ class VAT(nn.Module):
         labeled = labels != -1
 
         adv_loss = self.adv_loss(imgs)
-        clf_loss = F.cross_entropy(self(imgs[labeled]), labels[labeled])
+
+        if labeled.sum() == 0:
+            clf_loss = 0
+        else:
+            clf_loss = F.cross_entropy(self(imgs[labeled]), labels[labeled])
+
         return clf_loss + adv_loss
 
-    def fit(self, trainloader, testloader, epochs=10, lr=1e-4):
-        optim = Adam(self.parameters(), lr=lr)
 
-        losses = []
-        accs = [self._test(testloader)]
-
-        for _ in trange(epochs, desc="Fitting..."):
-            for batch in trainloader:
-                loss = self._step(batch)
-
-                optim.zero_grad()
-                loss.backward()
-                optim.step()
-
-                losses.append(loss.detach().cpu().numpy())
-
-            accs.append(self._test(testloader))
-
-        return np.array(losses), np.array(accs)
-
-
-class FixMatch(nn.Module):
+class FixMatch(BaseModule):
     def __init__(self, out_dim=128, hid_dim_full=128, tau=0.7, lam=10):
         super().__init__()
         self.tau = tau
@@ -179,12 +155,8 @@ class FixMatch(nn.Module):
 
         return self.last(features)
 
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
     @torch.no_grad()
-    def _test(self, testloader):
+    def test(self, testloader):
         self.eval()
 
         acc = 0
@@ -201,7 +173,7 @@ class FixMatch(nn.Module):
 
         return acc.cpu().numpy()
 
-    def _step(self, batch):
+    def step(self, batch):
         imgs, labels = batch
         imgs = imgs.to(self.device)
         labels = labels.to(self.device)
@@ -209,43 +181,25 @@ class FixMatch(nn.Module):
         labeled = labels != -1
         unlabeled = labels == -1
 
-        pred_labeled = self(self.strong_tansform(imgs[labeled]))
-        loss_labeled = F.cross_entropy(pred_labeled, labels[labeled])
+        if labeled.sum() == 0:
+            loss_labeled = 0
+        else:
+            pred_labeled = self(self.weak_transform(imgs[labeled]))
+            loss_labeled = F.cross_entropy(pred_labeled, labels[labeled])
 
-        pred_unlabeled = self(self.weak_transform(imgs[unlabeled]))
+        if unlabeled.sum() == 0:
+            loss_unlabeled = 0
+        else:
+            pred_unlabeled = self(self.weak_transform(imgs[unlabeled]))
 
-        confidence, pseudolabels = torch.max(pred_unlabeled, dim=1)
-        thresholded = confidence > self.tau
-        loss_unlabeled = F.cross_entropy(pred_unlabeled[thresholded], pseudolabels[thresholded])
+            confidence, pseudolabels = torch.max(pred_unlabeled, dim=1)
+            thresholded = confidence > self.tau
+
+            if thresholded.sum() == 0:
+                loss_unlabeled = 0
+            else:
+                loss_unlabeled = F.cross_entropy(
+                    self(self.strong_tansform(imgs[unlabeled][thresholded])), pseudolabels[thresholded]
+                )
 
         return loss_labeled + self.lam * loss_unlabeled
-
-    def fit(self, trainloader, testloader, epochs=10, lr=5e-4):
-        optim = Adam(self.parameters(), lr=lr)
-
-        losses = []
-        accs = [self._test(testloader)]
-
-        for _ in trange(epochs, desc="Fitting..."):
-            for batch in trainloader:
-                loss = self._step(batch)
-
-                optim.zero_grad()
-                loss.backward()
-                optim.step()
-
-                losses.append(loss.detach().cpu().numpy())
-
-            accs.append(self._test(testloader))
-
-        return np.array(losses), np.array(accs)
-
-
-if __name__ == "__main__":
-    import numpy as np
-
-    imgs = torch.tensor(np.random.uniform(0, 1, (2, 3, 32, 32)), dtype=torch.float32)
-
-    model = VAT()
-    print(model(imgs).shape)
-

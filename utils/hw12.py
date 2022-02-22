@@ -1,5 +1,6 @@
-from .utils import *
 from torch.utils.data import Dataset
+
+from .utils import *
 
 
 class SSDataset(Dataset):
