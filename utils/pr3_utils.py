@@ -21,8 +21,12 @@ def load_smiley_face(n):
     rand = np.random.RandomState(0)
     a = [[-1.5, 2.5]] + rand.randn(count // 3, 2) * 0.2
     b = [[1.5, 2.5]] + rand.randn(count // 3, 2) * 0.2
+<<<<<<< HEAD
     c = np.c_[2 * np.cos(np.linspace(0, np.pi, count // 3)),
               -np.sin(np.linspace(0, np.pi, count // 3))]
+=======
+    c = np.c_[2 * np.cos(np.linspace(0, np.pi, count // 3)), -np.sin(np.linspace(0, np.pi, count // 3))]
+>>>>>>> main
     c += rand.randn(*c.shape) * 0.2
     data_x = np.concatenate([a, b, c], axis=0)
     data_y = np.array([0] * len(a) + [1] * len(b) + [2] * len(c))
@@ -52,6 +56,7 @@ def visualize_q1_data(dset_type):
     elif dset_type == 2:
         train_data, train_labels, test_data, test_labels = q1_sample_data_2()
     else:
+<<<<<<< HEAD
         raise Exception('Invalid dset_type:', dset_type)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6, 4.8))
     ax1.set_title('Train Data')
@@ -72,6 +77,28 @@ def show_2d_samples(samples, fname=None, title='Samples'):
     plt.scatter(samples[:, 0], samples[:, 1], s=1)
     plt.xlabel('x1')
     plt.ylabel('x2')
+=======
+        raise Exception("Invalid dset_type:", dset_type)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6, 4.8))
+    ax1.set_title("Train Data")
+    ax1.scatter(train_data[:, 0], train_data[:, 1], s=1, c=train_labels)
+    ax1.set_xlabel("x1")
+    ax1.set_xlabel("x2")
+    ax2.set_title("Test Data")
+    ax2.scatter(test_data[:, 0], test_data[:, 1], s=1, c=test_labels)
+    ax1.set_xlabel("x1")
+    ax1.set_xlabel("x2")
+    print(f"Dataset {dset_type}")
+    plt.show()
+
+
+def show_2d_samples(samples, fname=None, title="Samples"):
+    plt.figure()
+    plt.title(title)
+    plt.scatter(samples[:, 0], samples[:, 1], s=1)
+    plt.xlabel("x1")
+    plt.ylabel("x2")
+>>>>>>> main
 
     if fname is not None:
         savefig(fname)
@@ -79,12 +106,21 @@ def show_2d_samples(samples, fname=None, title='Samples'):
         plt.show()
 
 
+<<<<<<< HEAD
 def show_2d_latents(latents, labels, fname=None, title='Latent Space'):
     plt.figure()
     plt.title(title)
     plt.scatter(latents[:, 0], latents[:, 1], s=1, c=labels)
     plt.xlabel('z1')
     plt.ylabel('z2')
+=======
+def show_2d_latents(latents, labels, fname=None, title="Latent Space"):
+    plt.figure()
+    plt.title(title)
+    plt.scatter(latents[:, 0], latents[:, 1], s=1, c=labels)
+    plt.xlabel("z1")
+    plt.ylabel("z2")
+>>>>>>> main
 
     if fname is not None:
         savefig(fname)
@@ -92,7 +128,11 @@ def show_2d_latents(latents, labels, fname=None, title='Latent Space'):
         plt.show()
 
 
+<<<<<<< HEAD
 def show_2d_densities(densities, dset_type, fname=None, title='Densities'):
+=======
+def show_2d_densities(densities, dset_type, fname=None, title="Densities"):
+>>>>>>> main
     plt.figure()
     plt.title(title)
     dx, dy = 0.025, 0.025
@@ -103,15 +143,25 @@ def show_2d_densities(densities, dset_type, fname=None, title='Densities'):
         x_lim = (-1.5, 2.5)
         y_lim = (-1, 1.5)
     else:
+<<<<<<< HEAD
         raise Exception('Invalid dset_type:', dset_type)
     y, x = np.mgrid[slice(y_lim[0], y_lim[1] + dy, dy),
                     slice(x_lim[0], x_lim[1] + dx, dx)]
+=======
+        raise Exception("Invalid dset_type:", dset_type)
+    y, x = np.mgrid[slice(y_lim[0], y_lim[1] + dy, dy), slice(x_lim[0], x_lim[1] + dx, dx)]
+>>>>>>> main
     # mesh_xs = ptu.FloatTensor(np.stack([x, y], axis=2).reshape(-1, 2))
     # densities = np.exp(ptu.get_numpy(self.log_prob(mesh_xs)))
     plt.pcolor(x, y, densities.reshape([y.shape[0], y.shape[1]]))
     plt.pcolor(x, y, densities.reshape([y.shape[0], y.shape[1]]))
+<<<<<<< HEAD
     plt.xlabel('z1')
     plt.ylabel('z2')
+=======
+    plt.xlabel("z1")
+    plt.ylabel("z2")
+>>>>>>> main
     if fname is not None:
         savefig(fname)
     else:
@@ -124,6 +174,7 @@ def q1_save_results(dset_type, part, fn):
     elif dset_type == 2:
         train_data, train_labels, test_data, test_labels = q1_sample_data_2()
     else:
+<<<<<<< HEAD
         raise Exception('Invalid dset_type:', dset_type)
 
     train_losses, test_losses, densities, latents = fn(train_data, test_data, dset_type)
@@ -134,6 +185,22 @@ def q1_save_results(dset_type, part, fn):
                        f'results/q1_{part}_dset{dset_type}_train_plot.png')
     show_2d_densities(densities, dset_type, fname=f'results/q1_{part}_dset{dset_type}_densities.png')
     show_2d_latents(latents, train_labels, f'results/q1_{part}_dset{dset_type}_latents.png')
+=======
+        raise Exception("Invalid dset_type:", dset_type)
+
+    train_losses, test_losses, densities, latents = fn(train_data, test_data, dset_type)
+
+    print(f"Final Test Loss: {test_losses[-1]:.4f}")
+
+    save_training_plot(
+        train_losses,
+        test_losses,
+        f"Q1({part}) Dataset {dset_type} Train Plot",
+        f"results/q1_{part}_dset{dset_type}_train_plot.png",
+    )
+    show_2d_densities(densities, dset_type, fname=f"results/q1_{part}_dset{dset_type}_densities.png")
+    show_2d_latents(latents, train_labels, f"results/q1_{part}_dset{dset_type}_latents.png")
+>>>>>>> main
 
 
 #######################################
@@ -158,6 +225,10 @@ def q1_save_results(dset_type, part, fn):
 #
 #     return np.array(samples).astype('float32')
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
 def generate_1d_flow_data(n):
     assert n % 2 == 0
     gaussian1 = np.random.normal(loc=-1, scale=0.25, size=(n // 2,))
@@ -188,13 +259,22 @@ def load_flow_demo_1(n_train, n_test, visualize=True, train_only=False):
     return train_dset, test_dset
 
 
+<<<<<<< HEAD
 def load_flow_demo_2(n_train, n_test, loader_args, visualize=True, train_only=False, distribution='uniform'):
     if distribution == 'uniform':
+=======
+def load_flow_demo_2(n_train, n_test, loader_args, visualize=True, train_only=False, distribution="uniform"):
+    if distribution == "uniform":
+>>>>>>> main
         train_data = np.random.uniform(-2, 2, (n_train,))
         test_data = np.random.uniform(-2, 2, (n_test,))
         xs = np.linspace(-2, 2, 250)
         ys = np.ones_like(xs) * 0.25
+<<<<<<< HEAD
     elif distribution == 'triangular':
+=======
+    elif distribution == "triangular":
+>>>>>>> main
         train_data = np.random.triangular(-2, -1.5, 2, (n_train,))
         test_data = np.random.triangular(-2, -1.5, 2, (n_test,))
         xs = np.linspace(-2, 2, 250)
@@ -202,7 +282,11 @@ def load_flow_demo_2(n_train, n_test, loader_args, visualize=True, train_only=Fa
         ys[xs < -1.5] = 2.0 + xs[xs < -1.5]
         ys[xs >= -1.5] = (2 - xs[xs >= -1.5]) / 7
         plt.plot(xs, ys)
+<<<<<<< HEAD
     elif distribution == 'complex':
+=======
+    elif distribution == "complex":
+>>>>>>> main
         xs = np.linspace(0, 1, 100)
         ys = np.tanh(np.sin(8 * np.pi * xs) + 3 * np.power(xs, 0.5))
         train_data = np.random.choice(np.linspace(-2, 2, 100), size=n_train, p=ys / ys.sum())
@@ -228,7 +312,10 @@ def load_flow_demo_2(n_train, n_test, loader_args, visualize=True, train_only=Fa
 
 
 class NumpyDataset(data.Dataset):
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
     def __init__(self, array, transform=None):
         super().__init__()
         self.array = array
@@ -248,14 +335,23 @@ class NumpyDataset(data.Dataset):
 ######### Visualization Utils for Flow Demos #########
 ######################################################
 
+<<<<<<< HEAD
 def plot_hist(data, bins=10, xlabel='x', ylabel='Probability', title='', density=None):
+=======
+
+def plot_hist(data, bins=10, xlabel="x", ylabel="Probability", title="", density=None):
+>>>>>>> main
     bins = np.concatenate((np.arange(bins) - 0.5, [bins - 1 + 0.5]))
 
     plt.figure()
     plt.hist(data, bins=bins, density=True)
 
     if density:
+<<<<<<< HEAD
         plt.plot(density[0], density[1], label='distribution')
+=======
+        plt.plot(density[0], density[1], label="distribution")
+>>>>>>> main
         plt.legend()
 
     plt.xlabel(xlabel)
@@ -264,6 +360,7 @@ def plot_hist(data, bins=10, xlabel='x', ylabel='Probability', title='', density
     plt.show()
 
 
+<<<<<<< HEAD
 def plot_2d_dist(dist, title='Learned Distribution'):
     plt.figure()
     plt.imshow(dist)
@@ -274,10 +371,23 @@ def plot_2d_dist(dist, title='Learned Distribution'):
 
 
 def plot_train_curves(epochs, train_losses, test_losses, title=''):
+=======
+def plot_2d_dist(dist, title="Learned Distribution"):
+    plt.figure()
+    plt.imshow(dist)
+    plt.title(title)
+    plt.xlabel("x1")
+    plt.ylabel("x0")
+    plt.show()
+
+
+def plot_train_curves(epochs, train_losses, test_losses, title=""):
+>>>>>>> main
     n_epochs = len(test_losses) - 1
     x_train = np.linspace(0, n_epochs, len(train_losses))
     x_test = np.arange(n_epochs + 1)
 
+<<<<<<< HEAD
     plt.plot(x_train, train_losses, label='train loss')
     plt.plot(x_test, test_losses, label='test loss')
     plt.legend()
@@ -288,10 +398,23 @@ def plot_train_curves(epochs, train_losses, test_losses, title=''):
 
 
 def visualize_batch(batch_tensor, nrow=8, title='', figsize=None):
+=======
+    plt.plot(x_train, train_losses, label="train loss")
+    plt.plot(x_test, test_losses, label="test loss")
+    plt.legend()
+    plt.title(title)
+    plt.xlabel("Epoch")
+    plt.ylabel("NLL")
+    plt.show()
+
+
+def visualize_batch(batch_tensor, nrow=8, title="", figsize=None):
+>>>>>>> main
     grid_img = make_grid(batch_tensor, nrow=nrow)
     plt.figure(figsize=figsize)
     plt.title(title)
     plt.imshow(grid_img.permute(1, 2, 0))
+<<<<<<< HEAD
     plt.axis('off')
     plt.show()
 
@@ -299,6 +422,15 @@ def visualize_batch(batch_tensor, nrow=8, title='', figsize=None):
 def plot_1d_continuous_dist(density, xlabel='x', ylabel="Density", title=''):
     plt.figure()
     plt.plot(density[0], density[1], label='distribution')
+=======
+    plt.axis("off")
+    plt.show()
+
+
+def plot_1d_continuous_dist(density, xlabel="x", ylabel="Density", title=""):
+    plt.figure()
+    plt.plot(density[0], density[1], label="distribution")
+>>>>>>> main
     plt.legend()
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -313,34 +445,58 @@ def visualize_demo1_flow(train_data, initial_flow, final_flow):
     # before:
     plt.subplot(231)
     plt.hist(ptu.get_numpy(train_data), bins=50)
+<<<<<<< HEAD
     plt.title('True Distribution of x')
+=======
+    plt.title("True Distribution of x")
+>>>>>>> main
 
     plt.subplot(232)
     x = ptu.FloatTensor(np.linspace(-3, 3, 200))
     z, _ = initial_flow.flow(x)
     plt.plot(ptu.get_numpy(x), ptu.get_numpy(z))
+<<<<<<< HEAD
     plt.title('Flow x -> z')
+=======
+    plt.title("Flow x -> z")
+>>>>>>> main
 
     plt.subplot(233)
     z_data, _ = initial_flow.flow(train_data)
     plt.hist(ptu.get_numpy(z_data), bins=50)
+<<<<<<< HEAD
     plt.title('Empirical Distribution of z')
+=======
+    plt.title("Empirical Distribution of z")
+>>>>>>> main
 
     # after:
     plt.subplot(234)
     plt.hist(ptu.get_numpy(train_data), bins=50)
+<<<<<<< HEAD
     plt.title('True Distribution of x')
+=======
+    plt.title("True Distribution of x")
+>>>>>>> main
 
     plt.subplot(235)
     x = ptu.FloatTensor(np.linspace(-3, 3, 200))
     z, _ = final_flow.flow(x)
     plt.plot(ptu.get_numpy(x), ptu.get_numpy(z))
+<<<<<<< HEAD
     plt.title('Flow x -> z')
+=======
+    plt.title("Flow x -> z")
+>>>>>>> main
 
     plt.subplot(236)
     z_data, _ = final_flow.flow(train_data)
     plt.hist(ptu.get_numpy(z_data), bins=50)
+<<<<<<< HEAD
     plt.title('Empirical Distribution of z')
+=======
+    plt.title("Empirical Distribution of z")
+>>>>>>> main
 
     plt.tight_layout()
 
