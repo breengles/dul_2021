@@ -3,3 +3,8 @@
 .python-version
 data/
 test.py
+data/
+MNIST/
+cifar-10-batches-py/
+cifar-10-python.tar.gz
+
