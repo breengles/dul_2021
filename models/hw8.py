@@ -11,12 +11,7 @@ class MomentMatchDRE(nn.Module):
     def __init__(self, hd=128, sigma=1):
         super().__init__()
         self.r = nn.Sequential(
-            nn.Linear(1, hd),
-            nn.ReLU(),
-            nn.Linear(hd, hd),
-            nn.ReLU(),
-            nn.Linear(hd, 1),
-            nn.Softplus(),
+            nn.Linear(1, hd), nn.ReLU(), nn.Linear(hd, hd), nn.ReLU(), nn.Linear(hd, 1), nn.Softplus(),
         )
 
         self.sigma = sigma
