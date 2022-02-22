@@ -1,9 +1,9 @@
-import torch
 import numpy as np
+import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
-from tqdm.auto import trange, tqdm
 from torchdiffeq import odeint_adjoint as odeint
+from tqdm.auto import tqdm, trange
 
 
 class UWBNet(nn.Module):

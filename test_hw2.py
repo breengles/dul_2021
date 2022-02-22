@@ -1,10 +1,10 @@
-from utils.hw2_dataset import get_dataloader, MyDataset
-from utils.hw2_utils import *
-from matplotlib import pyplot as plt
-from utils.hw2_model import IndependentPixelCNN
 import torch
 import torch.nn as nn
-from utils.hw2_model import ConvA, SpatialConvA, ConvB, SpatialConvB
+from matplotlib import pyplot as plt
+
+from datasets.hw2 import MyDataset, get_dataloader
+from models.hw2 import ConvA, ConvB, IndependentPixelCNN, SpatialConvA, SpatialConvB
+from utils.hw2 import *
 
 
 class MaskConv2d(nn.Conv2d):

@@ -1,10 +1,10 @@
 import numpy as np
 import torch
-from torch import nn
-from torch.nn import functional as F
-from tqdm.auto import trange, tqdm
-from torch.distributions import Normal, Uniform
 from scipy.optimize import bisect
+from torch import nn
+from torch.distributions import Normal, Uniform
+from torch.nn import functional as F
+from tqdm.auto import tqdm, trange
 
 
 class MaskedConv(nn.Conv2d):

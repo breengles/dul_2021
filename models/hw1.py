@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union, List, Tuple
 from tqdm.auto import trange
 
 
@@ -21,7 +20,7 @@ class MaskedLinear(nn.Linear):
 
 
 class MADE(nn.Module):
-    def __init__(self, hidden_sizes: Union[List, Tuple], inp_dim, out_dim, d):
+    def __init__(self, hidden_sizes, inp_dim, out_dim, d):
         super().__init__()
 
         self.hidden_sizes = hidden_sizes

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-from tqdm.auto import trange, tqdm
+from tqdm.auto import tqdm, trange
 
 
 class MaskedConv(nn.Conv2d):

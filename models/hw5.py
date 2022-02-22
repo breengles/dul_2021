@@ -1,8 +1,8 @@
+import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn
 from tqdm.auto import tqdm, trange
-import numpy as np
-import torch.nn.functional as F
 
 
 class Encoder(nn.Module):

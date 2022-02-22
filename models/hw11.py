@@ -1,5 +1,4 @@
 from copy import deepcopy
-from turtle import forward
 
 import numpy as np
 import torch
@@ -7,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.optim import Adam
 from torchvision import transforms
-from tqdm.auto import tqdm, trange
+from tqdm.auto import trange
 
 
 class Net(nn.Module):
@@ -89,7 +88,6 @@ class BYOL(nn.Module):
         z_teacher = F.normalize(self.teacher(v2), dim=1)
 
         return F.mse_loss(z_predictor, z_teacher)
-        # return F.mse_loss(z_predictor, z_teacher, reduction="none").sum(-1).mean()
 
     def _step(self, batch):
         batch = batch.to(self.device)
@@ -123,7 +121,6 @@ class BYOL(nn.Module):
     @torch.no_grad()
     def encode(self, x):
         self.student.eval()
-        # x = transforms.Resize(24)(x)
         return self.student(x.to(self.device))
 
 
@@ -194,5 +191,4 @@ class BTWINS(nn.Module):
     @torch.no_grad()
     def encode(self, x):
         self.eval()
-        # x = transforms.Resize(28)(x)
         return self(x.to(self.device))

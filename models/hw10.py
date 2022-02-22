@@ -1,10 +1,10 @@
+import numpy as np
 import torch
+from sklearn.metrics import accuracy_score
 from torch import nn
 from torch.nn import functional as F
-import numpy as np
-from tqdm.auto import trange, tqdm
 from torch.optim import Adam
-from sklearn.metrics import accuracy_score
+from tqdm.auto import tqdm, trange
 
 
 class Discriminator(nn.Module):

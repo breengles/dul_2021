@@ -139,8 +139,9 @@ def b1ab_get_data():
 def b1c_save_results(b1_c):
     data_dir = get_data_dir(2)
     train_data, test_data = load_pickled_data(join(data_dir, "mnist.pkl"))
-    train_data, test_data = torch.FloatTensor(train_data).permute(0, 3, 1, 2), torch.FloatTensor(test_data).permute(
-        0, 3, 1, 2
+    train_data, test_data = (
+        torch.FloatTensor(train_data).permute(0, 3, 1, 2),
+        torch.FloatTensor(test_data).permute(0, 3, 1, 2),
     )
     train_data = F.interpolate(train_data, scale_factor=2, mode="bilinear")
     test_data = F.interpolate(test_data, scale_factor=2, mode="bilinear")
