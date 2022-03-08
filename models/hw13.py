@@ -409,4 +409,4 @@ class RealNVP(nn.Module):
         x = 1 / (1 + torch.exp(-x))
         x = x - self.alpha
         x = x / (1 - self.alpha)
-        return x.cpu().numpy().transpose(0, 2, 3, 1)
+        return x.cpu().numpy().transpose(0, 2, 3, 1).clip(0, 1)
