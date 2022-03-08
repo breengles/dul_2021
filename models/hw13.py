@@ -371,7 +371,7 @@ class RealNVP(nn.Module):
     def sample(self, n):
         self.eval()
         z = self.bdist.sample((n, 3, 32, 32)).squeeze(-1)
-        return self.sample2img(self.g(z))
+        return self.tensor2img(self.g(z))
 
     @torch.no_grad()
     def interpolate(self, images):
@@ -402,10 +402,10 @@ class RealNVP(nn.Module):
         latents = torch.cat(latents)
 
         res = self.g(latents)
-        return self.sample2img(res)
+        return self.tensor2img(res)
 
     @torch.no_grad()
-    def sample2img(self, x):
+    def tensor2img(self, x):
         x = 1 / (1 + torch.exp(-x))
         x = x - self.alpha
         x = x / (1 - self.alpha)
