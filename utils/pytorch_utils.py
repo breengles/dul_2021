@@ -1,13 +1,16 @@
-import torch
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from torchvision import transforms
+from torchvision.datasets import CIFAR10, MNIST
+from torchvision.utils import make_grid
 
 # borrow from https://github.com/rll/deepul
 
+
 def soft_update_from_to(source, target, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
-        target_param.data.copy_(
-            target_param.data * (1.0 - tau) + param.data * tau
-        )
+        target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
 
 def copy_model_params_from_to(source, target):
@@ -23,7 +26,7 @@ def fanin_init(tensor):
         fan_in = np.prod(size[1:])
     else:
         raise Exception("Shape must be have dimension at least 2.")
-    bound = 1. / np.sqrt(fan_in)
+    bound = 1.0 / np.sqrt(fan_in)
     return tensor.data.uniform_(-bound, bound)
 
 
@@ -35,7 +38,7 @@ def fanin_init_weights_like(tensor):
         fan_in = np.prod(size[1:])
     else:
         raise Exception("Shape must be have dimension at least 2.")
-    bound = 1. / np.sqrt(fan_in)
+    bound = 1.0 / np.sqrt(fan_in)
     new_tensor = FloatTensor(tensor.size())
     new_tensor.uniform_(-bound, bound)
     return new_tensor
@@ -79,7 +82,7 @@ def from_numpy(*args, **kwargs):
 
 
 def get_numpy(tensor):
-    return tensor.to('cpu').detach().numpy()
+    return tensor.to("cpu").detach().numpy()
 
 
 def zeros(*sizes, torch_device=None, **kwargs):
@@ -105,6 +108,7 @@ def randn(*args, torch_device=None, **kwargs):
         torch_device = device
     return torch.randn(*args, **kwargs, device=torch_device)
 
+
 def zeros_like(*args, torch_device=None, **kwargs):
     if torch_device is None:
         torch_device = device
@@ -119,3 +123,24 @@ def tensor(*args, torch_device=None, **kwargs):
 
 def normal(*args, **kwargs):
     return torch.normal(*args, **kwargs).to(device)
+
+
+def get_data(dataset="MNIST", binary=False):
+    if binary:
+        transform = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)), transforms.round()]
+        )
+    else:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+
+    if dataset == "MNIST":
+        train_set = MNIST(root="./", train=True, transform=transform, download=True)
+        test_set = MNIST(root="./", train=False, transform=transform, download=True)
+    elif dataset == "CIFAR10":
+        train_set = CIFAR10(root="./", train=True, transform=transform, download=True)
+        test_set = CIFAR10(root="./", train=False, transform=transform, download=True)
+    else:
+        raise ValueError()
+
+    return train_set, test_set
+
