@@ -1,24 +1,27 @@
+from enum import Enum, auto
+
+import numpy as np
 import torch
 from torch import nn
-from torch.optim import Adam
 from torch.distributions import Normal, Uniform
 from torch.nn import functional as F
-import numpy as np
+from torch.optim import Adam
 from tqdm.auto import tqdm, trange
-from enum import Enum, auto
 
 
 @torch.no_grad()
 def tensor2img(x, alpha):
+    # as imgs preprocessed in the similar manner
     x = 1 / (1 + torch.exp(-x))
-    # x = x - alpha
-    # x = x / (1 - alpha)
+    x = x - alpha
+    x = x / (1 - alpha)
     return x.cpu().numpy().transpose(0, 2, 3, 1).clip(0, 1)
 
 
 class Conv2d_wn(nn.Module):
     """
     just simple weight normalization
+    this is not the proposed normalization of activations as in paper
     """
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0) -> None:
@@ -48,9 +51,10 @@ class ActNorm(nn.Module):
         return next(self.parameters()).device
 
     def __initialize_weights(self, x):
-        self.b.data = -torch.mean(x, dim=(0, 2, 3), keepdim=True)
-        s = torch.std(x.permute(1, 0, 2, 3).reshape(self.n_channels, -1), dim=1).reshape(1, self.n_channels, 1, 1)
+        s = torch.std(x, dim=(0, 2, 3)).reshape(1, self.n_channels, 1, 1)
         self.log_s.data = -torch.log(s)
+
+        self.b.data = -torch.mean(x, dim=(0, 2, 3), keepdim=True) * torch.exp(self.log_s.data)
 
         self.initialized = True
 
@@ -107,7 +111,7 @@ class SimpleResnet(nn.Module):
             # ResBlock(n_filters),
             # ResBlock(n_filters),
             # ResBlock(n_filters),
-            # ResBlock(n_filters),
+            # ResBlock(n_filters),  # too large model for my GPU
             nn.ReLU(),
             Conv2d_wn(n_filters, out_channels, (3, 3), 1, 1),
         )
@@ -137,7 +141,11 @@ class AffineCouplingWithCheckerboard(nn.Module):
 
     @staticmethod
     def __build_mask(top_left=1):
-        mask = torch.arange(32).reshape(-1, 1) + torch.arange(32)  # 32x32 board
+        # 32x32 board
+        # 0 1 2 3 ...
+        # 1 2 3 4 ...
+        # ...
+        mask = torch.arange(32).reshape(-1, 1) + torch.arange(32)
 
         # top-left corner is 1 as (1 + 1 + 1) % 2 = 1 if top_left == 1
         # see fig 3 (left) in https://arxiv.org/pdf/1605.08803.pdf
@@ -328,12 +336,11 @@ class RealNVP(nn.Module):
         x += self.alpha
 
         # NaNs arise so some regularization of log is required
-        # last term is from normalization
         logit = (
             torch.log(x + 1e-8)
             - torch.log(1 - x + 1e-8)
-            + torch.log(torch.tensor(1 - self.alpha))
-            - torch.log(torch.tensor(4))
+            + torch.log(torch.tensor(1 - self.alpha))  # from preprocessing
+            - torch.log(torch.tensor(4))  # from normalization
         )
         log_det = F.softplus(logit) + F.softplus(-logit)
 
@@ -356,7 +363,7 @@ class RealNVP(nn.Module):
         log_prob = self.log_prob(x)
         log_prob += log_det
 
-        return -log_prob.mean() / (3 * 32 * 32)
+        return -log_prob.mean() / (3 * 32 * 32)  # per pixel-channel
 
     def _build_prior(self):
         self.bdist = Normal(torch.tensor([0.0], device=self.device), torch.tensor([1.0], device=self.device))
@@ -472,6 +479,10 @@ class BadAffineCoupling(nn.Module):
 
 
 class BadRealNVP(nn.Module):
+    """
+    Essential, it is the same RealNVP as above but with different spatial masking without channel masking
+    """
+
     def __init__(self, alpha=0.05) -> None:
         super().__init__()
         self.alpha = alpha
