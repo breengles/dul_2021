@@ -1,4 +1,3 @@
-from ast import Not
 import torch
 from torch import nn
 from torch.optim import Adam
@@ -6,6 +5,15 @@ from torch.distributions import Normal, Uniform
 from torch.nn import functional as F
 import numpy as np
 from tqdm.auto import tqdm, trange
+from enum import Enum, auto
+
+
+@torch.no_grad()
+def tensor2img(x, alpha):
+    x = 1 / (1 + torch.exp(-x))
+    # x = x - alpha
+    # x = x / (1 - alpha)
+    return x.cpu().numpy().transpose(0, 2, 3, 1).clip(0, 1)
 
 
 class Conv2d_wn(nn.Module):
@@ -312,15 +320,21 @@ class RealNVP(nn.Module):
         return self
 
     def preprocess(self, x):
-        x += Uniform(0, 0.1).sample(x.shape).to(self.device)
-        x = x.clip(0, 1)
+        x += Uniform(0, 1).sample(x.shape).to(self.device)
+
+        x /= 4
 
         x *= 1 - self.alpha
         x += self.alpha
 
         # NaNs arise so some regularization of log is required
         # last term is from normalization
-        logit = torch.log(x + 1e-8) - torch.log(1 - x + 1e-8) + torch.log(1 - self.alpha) - torch.log(3)
+        logit = (
+            torch.log(x + 1e-8)
+            - torch.log(1 - x + 1e-8)
+            + torch.log(torch.tensor(1 - self.alpha))
+            - torch.log(torch.tensor(4))
+        )
         log_det = F.softplus(logit) + F.softplus(-logit)
 
         return logit, log_det.sum(dim=(1, 2, 3))
@@ -371,7 +385,213 @@ class RealNVP(nn.Module):
     def sample(self, n):
         self.eval()
         z = self.bdist.sample((n, 3, 32, 32)).squeeze(-1)
-        return self.tensor2img(self.g(z))
+        return tensor2img(self.g(z), self.alpha)
+
+    @torch.no_grad()
+    def interpolate(self, images):
+        """
+        first half is start, second half is finish images, respectively.
+        """
+        self.eval()
+
+        images = images.to(self.device).float()
+        assert images.shape[0] % 2 == 0
+        start_size = images.shape[0] // 2
+
+        # to be fully corrent we should disable dequantizing part here
+        # but at the meta level of approach it should not matter much
+        x, _ = self.preprocess(images)
+        z, _ = self.f(x)
+
+        latents = []
+        for i in range(0, start_size):
+            z_start = z[i].unsqueeze(0)
+            z_finish = z[start_size + i].unsqueeze(0)
+
+            d = (z_finish - z_start) / 5
+
+            latents.append(z_start)  # save 1st starting img
+            for j in range(1, 5):
+                latents.append(z_start + d * j)  # save next __4__ intermediate imgs
+            latents.append(z_finish)  # save last finishing img
+
+        latents = torch.cat(latents)
+
+        res = self.g(latents)
+        return tensor2img(res, self.alpha)
+
+
+class Mask(Enum):
+    top = auto()
+    bot = auto()
+
+
+class BadAffineCoupling(nn.Module):
+    def __init__(self, kind=Mask.top) -> None:
+        super().__init__()
+        self.mask_kind = kind
+        self.mask = self.__build_mask(kind)
+
+        self.g = nn.Parameter(torch.zeros(1), requires_grad=True)
+        self.b = nn.Parameter(torch.zeros(1), requires_grad=True)
+        self.resnet = SimpleResnet(3, 6)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+    @staticmethod
+    def __build_mask(kind):
+        if kind == Mask.top:
+            mask = torch.cat([torch.ones((1, 1, 16, 32)), torch.zeros((1, 1, 16, 32))], axis=2)
+        elif kind == Mask.bot:
+            mask = torch.cat([torch.zeros((1, 1, 16, 32)), torch.ones((1, 1, 16, 32))], axis=2)
+        else:
+            raise ValueError(f"Unknown kind of mask {kind}")
+
+        return mask.float()
+
+    def forward(self, x, reverse=False):
+        bs, n_channels, *_ = x.shape
+        mask = self.mask.repeat(bs, 1, 1, 1).to(x.device)
+
+        x_ = x * mask
+
+        log_s, b = self.resnet(x_).split(n_channels, dim=1)
+        log_s = self.g * torch.tanh(log_s) + self.b
+
+        b = b * (1 - mask)
+        log_s = log_s * (1 - mask)
+
+        if reverse:
+            x = (x - b) * torch.exp(-log_s)
+        else:
+            x = x * log_s.exp() + b
+
+        return x, log_s
+
+
+class BadRealNVP(nn.Module):
+    def __init__(self, alpha=0.05) -> None:
+        super().__init__()
+        self.alpha = alpha
+
+        self.bdist = None  # will be initialized in `fit`
+
+        self.tranforms = nn.ModuleList(
+            [
+                BadAffineCoupling(Mask.top),
+                ActNorm(3),
+                BadAffineCoupling(Mask.bot),
+                ActNorm(3),
+                BadAffineCoupling(Mask.top),
+                ActNorm(3),
+                BadAffineCoupling(Mask.bot),
+            ]
+        )
+
+    def g(self, z):
+        x = z
+
+        for t in reversed(self.tranforms):
+            x, _ = t(x, reverse=True)
+
+        return x
+
+    def f(self, x):
+        z, log_det = x, torch.zeros_like(x)
+
+        for t in self.tranforms:
+            z, d = t(z)
+            log_det += d
+
+        return z, log_det
+
+    def log_prob(self, x):
+        z, log_det = self.f(x)
+        p_x = log_det.sum(dim=(1, 2, 3))
+        p_z = self.bdist.log_prob(z).sum(dim=(1, 2, 3))
+        return p_x + p_z
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+    def to(self, *args, **kwargs):
+        super().to(*args, **kwargs)
+
+        for t in self.tranforms:
+            t.to(*args, **kwargs)
+
+        return self
+
+    def preprocess(self, x):
+        x += Uniform(0, 1).sample(x.shape).to(self.device)
+
+        x /= 4  # {0, 1, 2, 3} + [0, 1] \in [0, 4] ==> /4 gives [0, 1]
+
+        x *= 1 - self.alpha
+        x += self.alpha
+
+        # NaNs arise so some regularization of log is required
+        # last term is from normalization
+        logit = (
+            torch.log(x + 1e-8)
+            - torch.log(1 - x + 1e-8)
+            + torch.log(torch.tensor(1 - self.alpha))
+            - torch.log(torch.tensor(4))
+        )
+        log_det = F.softplus(logit) + F.softplus(-logit)
+
+        return logit, log_det.sum(dim=(1, 2, 3))
+
+    @torch.no_grad()
+    def _test(self, testloader):
+        self.eval()
+
+        losses = []
+        for batch in tqdm(testloader, desc="Testing...", leave=False):
+            losses.append(self._step(batch).cpu().numpy())
+
+        self.train()
+        return np.mean(losses)
+
+    def _step(self, batch):
+        batch = batch.to(self.device).float()
+        x, log_det = self.preprocess(batch)
+        log_prob = self.log_prob(x)
+        log_prob += log_det
+
+        return -log_prob.mean() / (3 * 32 * 32)
+
+    def _build_prior(self):
+        self.bdist = Normal(torch.tensor([0.0], device=self.device), torch.tensor([1.0], device=self.device))
+
+    def fit(self, trainloader, testloader, epochs=10, lr=1e-4):
+        self._build_prior()
+        losses = {"train": [], "test": [self._test(testloader)]}
+
+        optim = Adam(self.parameters(), lr=lr)
+
+        for _ in trange(epochs, desc="Training...", leave=False):
+            for batch in trainloader:
+                loss = self._step(batch)
+
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
+
+                losses["train"].append(loss.detach().cpu().numpy())
+
+            losses["test"].append(self._test(testloader))
+
+        return losses
+
+    @torch.no_grad()
+    def sample(self, n):
+        self.eval()
+        z = self.bdist.sample((n, 3, 32, 32)).squeeze(-1)
+        return tensor2img(self.g(z), self.alpha)
 
     @torch.no_grad()
     def interpolate(self, images):
@@ -394,19 +614,13 @@ class RealNVP(nn.Module):
 
             d = (z_finish - z_start) / 5
 
-            latents.append(z_start)
+            latents.append(z_start)  # save 1st starting img
             for j in range(1, 5):
-                latents.append(z_start + d * j)
-            latents.append(z_finish)
+                latents.append(z_start + d * j)  # save next __4__ intermediate imgs
+            latents.append(z_finish)  # save last finishing img
 
         latents = torch.cat(latents)
 
         res = self.g(latents)
-        return self.tensor2img(res)
+        return tensor2img(res, self.alpha)
 
-    @torch.no_grad()
-    def tensor2img(self, x):
-        x = 1 / (1 + torch.exp(-x))
-        x = x - self.alpha
-        x = x / (1 - self.alpha)
-        return x.cpu().numpy().transpose(0, 2, 3, 1).clip(0, 1)

@@ -7,7 +7,7 @@ class CelebDataset(Dataset):
     def __init__(self, data) -> None:
         super().__init__()
 
-        self.data = data.astype(float) / 3  # img are {0, 1, 2, 3}
+        self.data = data.astype(float)
         self.transforms = T.Compose([T.ToTensor(), T.RandomHorizontalFlip()])
 
     def __len__(self):
