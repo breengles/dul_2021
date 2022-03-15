@@ -336,13 +336,13 @@ class RealNVP(nn.Module):
         x += self.alpha
 
         # NaNs arise so some regularization of log is required
-        logit = (
-            torch.log(x + 1e-8)
-            - torch.log(1 - x + 1e-8)
+        logit = torch.log(x + 1e-8) - torch.log(1 - x + 1e-8)
+        log_det = (
+            F.softplus(logit)
+            + F.softplus(-logit)
             + torch.log(torch.tensor(1 - self.alpha))  # from preprocessing
             - torch.log(torch.tensor(4))  # from normalization
         )
-        log_det = F.softplus(logit) + F.softplus(-logit)
 
         return logit, log_det.sum(dim=(1, 2, 3))
 
@@ -545,14 +545,14 @@ class BadRealNVP(nn.Module):
         x += self.alpha
 
         # NaNs arise so some regularization of log is required
-        # last term is from normalization
-        logit = (
-            torch.log(x + 1e-8)
-            - torch.log(1 - x + 1e-8)
+        logit = torch.log(x + 1e-8) - torch.log(1 - x + 1e-8)
+
+        log_det = (
+            F.softplus(logit)
+            + F.softplus(-logit)
             + torch.log(torch.tensor(1 - self.alpha))
             - torch.log(torch.tensor(4))
         )
-        log_det = F.softplus(logit) + F.softplus(-logit)
 
         return logit, log_det.sum(dim=(1, 2, 3))
 
