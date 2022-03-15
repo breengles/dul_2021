@@ -49,7 +49,7 @@ class ProtoNet(nn.Module):
     def __get_proto(self, imgs, labels):
         bs = imgs.shape[0]
 
-        uniq_labels = torch.unique(labels, sorted=False)  # turn off sorting to keep it as in batch
+        uniq_labels = torch.unique(labels)
         n_uniq_labels = uniq_labels.shape[0]
 
         embeddings = self(imgs)
