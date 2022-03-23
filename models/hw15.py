@@ -152,7 +152,7 @@ class ContDDPM(nn.Module):
         g = lambda t: self.g_2(t).sqrt()
         # g = lambda t: self.g_2(t) * self.score(x, eps, t)
 
-        x_0 = solve_sde(x_t, f, g)
+        x_0 = solve_sde(x_t, f, g, ts=1, tf=0, dt=-1e-3, device=self.device)
         return x_0
 
     @torch.no_grad()
@@ -212,22 +212,21 @@ class Clf(nn.Module):
             SinusoidalPosEmb(dim), nn.Linear(dim, dim * 4), nn.GELU(), nn.Linear(dim * 4, dim)
         )
 
-        # this is kinda not working ???
-        # self.x = nn.ModuleList(
-        #     [nn.Linear(16 * 16 + dim, 8 * 8), nn.Linear(8 * 8 + dim, 4 * 4), nn.Linear(4 * 4 + dim, 10),]
-        # )
-
-        self.x = nn.Sequential(
-            nn.Conv2d(1, 16, 3, 2, 1),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, 3, 2, 1),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, 3, 2, 1),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, 3, 2, 1),
-            nn.ReLU(),
+        self.x = nn.ModuleList(
+            [nn.Linear(16 * 16 + dim, 8 * 8), nn.Linear(8 * 8 + dim, 4 * 4), nn.Linear(4 * 4 + dim, 10),]
         )
-        self.fc = nn.Linear(32 + dim, 10)
+
+        # self.x = nn.Sequential(
+        #     nn.Conv2d(1, 16, 3, 2, 1),
+        #     nn.ReLU(),
+        #     nn.Conv2d(16, 32, 3, 2, 1),
+        #     nn.ReLU(),
+        #     nn.Conv2d(32, 32, 3, 2, 1),
+        #     nn.ReLU(),
+        #     nn.Conv2d(32, 32, 3, 2, 1),
+        #     nn.ReLU(),
+        # )
+        # self.fc = nn.Linear(32 + dim, 10)
 
     @property
     def device(self):
@@ -239,17 +238,17 @@ class Clf(nn.Module):
 
         t_emb = self.time_mlp(t)
 
-        x = self.x(x)
-        x = x.flatten(1)
-        x = torch.cat([x, t_emb], dim=1)
-        return self.fc(x)
-
-        # for m in self.x[:-1]:
-        #     x = torch.cat([x, t_emb], dim=1)
-        #     x = F.relu(m(x))
-
+        # x = self.x(x)
         # x = torch.cat([x, t_emb], dim=1)
-        # return self.x[-1](x)
+        # return self.fc(x)
+
+        x = x.flatten(1)
+        for m in self.x[:-1]:
+            x = torch.cat([x, t_emb], dim=1)
+            x = F.relu(m(x))
+
+        x = torch.cat([x, t_emb], dim=1)
+        return self.x[-1](x)
 
     def gamma(self, t):
         return torch.log(torch.expm1(1e-4 + 10 * t ** 2))
@@ -344,5 +343,5 @@ class CondContDDPM(ContDDPM):
         g = lambda t: self.g_2(t).sqrt()
         # g = lambda t: self.g_2(t) * self.score(x, eps, t)
 
-        x_0 = solve_sde(x_t, f, g)
+        x_0 = solve_sde(x_t, f, g, ts=1, tf=0, dt=-1e-3, device=self.device)
         return x_0
