@@ -216,18 +216,6 @@ class Clf(nn.Module):
             [nn.Linear(16 * 16 + dim, 8 * 8), nn.Linear(8 * 8 + dim, 4 * 4), nn.Linear(4 * 4 + dim, 10),]
         )
 
-        # self.x = nn.Sequential(
-        #     nn.Conv2d(1, 16, 3, 2, 1),
-        #     nn.ReLU(),
-        #     nn.Conv2d(16, 32, 3, 2, 1),
-        #     nn.ReLU(),
-        #     nn.Conv2d(32, 32, 3, 2, 1),
-        #     nn.ReLU(),
-        #     nn.Conv2d(32, 32, 3, 2, 1),
-        #     nn.ReLU(),
-        # )
-        # self.fc = nn.Linear(32 + dim, 10)
-
     @property
     def device(self):
         return next(self.parameters()).device
@@ -237,10 +225,6 @@ class Clf(nn.Module):
             t = t.repeat(x.shape[0])
 
         t_emb = self.time_mlp(t)
-
-        # x = self.x(x)
-        # x = torch.cat([x, t_emb], dim=1)
-        # return self.fc(x)
 
         x = x.flatten(1)
         for m in self.x[:-1]:
