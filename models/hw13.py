@@ -297,7 +297,7 @@ class RealNVP(nn.Module):
             z, d = t(z)
             log_det += d
 
-        z, log_det = self.unsqueeze(z), self.unsqueeze(z)
+        z, log_det = self.unsqueeze(z), self.unsqueeze(log_det)
 
         for t in self.checker_tranforms[1]:
             z, d = t(z)
